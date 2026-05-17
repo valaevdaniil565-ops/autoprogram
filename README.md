@@ -14,6 +14,22 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 
 ## Run
 
+For regular users, download the ready archive:
+
+```text
+release/StartWorkLauncher-1.0.0.zip
+```
+
+Unzip it and run:
+
+```text
+StartWorkLauncher.exe
+```
+
+The exe build does not require Python.
+
+## Run From Source
+
 This project is Python source code, not a compiled `.exe`.
 
 The other user must have Python 3 installed on Windows. During installation, enable:

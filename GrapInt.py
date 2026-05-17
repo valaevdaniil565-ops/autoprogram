@@ -1,13 +1,17 @@
 import os
 import re
 import subprocess
+import sys
 import webbrowser
 from pathlib import Path
 from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog
 from tkinter import Listbox
 from tkinter import ttk
 
-APP_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+else:
+    APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "apps.txt"
 PROFILES_DIR = APP_DIR / "profiles"
 ICON_PATH = APP_DIR / "StartWork.ico"
