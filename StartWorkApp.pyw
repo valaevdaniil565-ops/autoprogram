@@ -7,7 +7,7 @@ import sys
 import urllib.request
 import webbrowser
 from pathlib import Path
-from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog, Toplevel, PhotoImage
+from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog, Toplevel, PhotoImage, Menu
 from tkinter import Listbox
 from tkinter import ttk
 
@@ -184,6 +184,48 @@ def normalize_item(value):
     if value.lower().startswith("www."):
         return "https://" + value
     return value
+
+
+def item_name_from_target(target):
+    target = normalize_item(target)
+    if not target:
+        return "Untitled"
+    if target.startswith(("http://", "https://")):
+        host = target.split("//", 1)[1].split("/", 1)[0]
+        return host.replace("www.", "") or target
+    if target.startswith("mailto:"):
+        return target.replace("mailto:", "Mail: ")
+    path = Path(target)
+    if path.name:
+        return path.stem if path.suffix else path.name
+    return target
+
+
+def make_item(target, name=None):
+    target = normalize_item(target)
+    return {"name": (name or item_name_from_target(target)).strip(), "target": target}
+
+
+def item_target(item):
+    if isinstance(item, dict):
+        return item.get("target", "")
+    return str(item)
+
+
+def item_name(item):
+    if isinstance(item, dict):
+        return item.get("name") or item_name_from_target(item.get("target", ""))
+    return item_name_from_target(str(item))
+
+
+def display_item(item):
+    return item_name(item)
+
+
+def serialize_item(item):
+    if isinstance(item, dict):
+        return json.dumps({"name": item_name(item), "target": item_target(item)}, ensure_ascii=False)
+    return json.dumps(make_item(str(item)), ensure_ascii=False)
 
 
 def read_list(path):
@@ -521,6 +563,10 @@ class StartWorkApp:
         self.entry = ttk.Entry(input_row, textvariable=self.entry_var)
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", lambda _event: self.add_item())
+        self.entry.bind("<Control-v>", self.paste_into_entry)
+        self.entry.bind("<Control-V>", self.paste_into_entry)
+        self.entry.bind("<Shift-Insert>", self.paste_into_entry)
+        self.entry.bind("<Button-3>", self.show_entry_menu)
         ttk.Button(input_row, text=self.t("Add"), style="Primary.TButton", command=self.add_item).pack(side="left", padx=(10, 0))
         ttk.Button(input_row, text=self.t("Library"), command=self.open_app_library).pack(side="left", padx=(8, 0))
         ttk.Button(input_row, text=self.t("File"), command=self.pick_file).pack(side="left", padx=(8, 0))
@@ -533,6 +579,7 @@ class StartWorkApp:
         self.listbox.pack(side="left", fill="both", expand=True)
         self.listbox.bind("<<ListboxSelect>>", self.on_select)
         self.listbox.bind("<Double-Button-1>", lambda _event: self.launch_selected())
+        self.listbox.bind("<Button-3>", self.show_item_menu)
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview, style="Vertical.TScrollbar")
         scrollbar.pack(side="right", fill="y")
         self.listbox.configure(yscrollcommand=scrollbar.set)
@@ -690,7 +737,7 @@ class StartWorkApp:
     def refresh_list(self):
         self.listbox.delete(0, END)
         for item in self.items:
-            self.listbox.insert(END, item)
+            self.listbox.insert(END, display_item(item))
         self.status_var.set(f"{self.t("Profile")}: {self.active_profile}. Items: {len(self.items)}")
 
     def sync_legacy_config(self):
@@ -700,10 +747,59 @@ class StartWorkApp:
         selection = self.listbox.curselection()
         return selection[0] if selection else None
 
+    def show_item_menu(self, event):
+        index = self.listbox.nearest(event.y)
+        if index < 0 or index >= len(self.items):
+            return
+        self.listbox.selection_clear(0, END)
+        self.listbox.selection_set(index)
+        menu = Menu(self.root, tearoff=0)
+        menu.add_command(label="Launch", command=self.launch_selected)
+        menu.add_command(label="Open file location", command=self.open_selected_location)
+        menu.add_command(label="Rename display name", command=self.rename_selected_item)
+        menu.add_command(label="Copy target", command=self.copy_selected_target)
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def open_selected_location(self):
+        index = self.selected_index()
+        if index is None:
+            return
+        target = item_target(self.items[index])
+        if target.startswith(("http://", "https://", "mailto:")):
+            messagebox.showinfo("Open file location", "This item is a link, not a local file.")
+            return
+        if not os.path.exists(target):
+            messagebox.showerror("Open file location", "Target path was not found.")
+            return
+        path = Path(target)
+        folder = path if path.is_dir() else path.parent
+        os.startfile(str(folder))
+
+    def copy_selected_target(self):
+        index = self.selected_index()
+        if index is None:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(item_target(self.items[index]))
+        self.status_var.set("Target copied")
+
+    def rename_selected_item(self):
+        index = self.selected_index()
+        if index is None:
+            return
+        current = item_name(self.items[index])
+        name = simpledialog.askstring("Rename display name", "Display name:", initialvalue=current, parent=self.root)
+        if not name:
+            return
+        self.items[index] = make_item(item_target(self.items[index]), name)
+        self.save(show_message=False)
+        self.refresh_list()
+        self.listbox.selection_set(index)
+
     def on_select(self, _event=None):
         index = self.selected_index()
         if index is not None:
-            self.entry_var.set(self.items[index])
+            self.entry_var.set(item_target(self.items[index]))
 
     def add_item(self):
         raw_value = self.entry.get() if hasattr(self, "entry") else self.entry_var.get()
@@ -711,11 +807,25 @@ class StartWorkApp:
         if not value:
             messagebox.showwarning("Empty item", "Enter an app, path, file, folder, or link.")
             return
-        self.items.append(value)
+        self.items.append(make_item(value))
         self.entry_var.set("")
         self.save(show_message=False)
         self.refresh_list()
-        self.status_var.set(f"Added: {value}")
+        self.status_var.set(f"Added: {item_name_from_target(value)}")
+
+    def paste_into_entry(self, _event=None):
+        try:
+            text = self.root.clipboard_get()
+        except Exception:
+            return "break"
+        self.entry.insert("insert", text)
+        return "break"
+
+    def show_entry_menu(self, event):
+        menu = Menu(self.root, tearoff=0)
+        menu.add_command(label="Paste", command=self.paste_into_entry)
+        menu.add_command(label="Clear", command=lambda: self.entry_var.set(""))
+        menu.tk_popup(event.x_root, event.y_root)
 
     def open_app_library(self):
         apps = detect_app_library()
@@ -739,8 +849,8 @@ class StartWorkApp:
             selection = box.curselection()
             if not selection or not apps:
                 return
-            item = apps[selection[0]]["path"]
-            self.items.append(item)
+            app = apps[selection[0]]
+            self.items.append(make_item(app["path"], app["name"]))
             self.save(show_message=False)
             self.refresh_list()
             win.destroy()
@@ -767,7 +877,7 @@ class StartWorkApp:
         if not value:
             messagebox.showwarning("Empty item", "Enter a new value.")
             return
-        self.items[index] = value
+        self.items[index] = make_item(value)
         self.save(show_message=False)
         self.refresh_list()
         self.listbox.selection_set(index)
@@ -780,7 +890,7 @@ class StartWorkApp:
         self.entry_var.set("")
         self.save(show_message=False)
         self.refresh_list()
-        self.status_var.set(f"Removed: {removed}")
+        self.status_var.set(f"Removed: {item_name(removed)}")
 
     def pick_file(self):
         path = filedialog.askopenfilename(title="Choose app or file")
@@ -813,7 +923,8 @@ class StartWorkApp:
             counter += 1
         if source.suffix.lower() == ".json":
             data = load_json(source, {})
-            items = data.get("items", []) if isinstance(data, dict) else []
+            raw_items = data.get("items", []) if isinstance(data, dict) else []
+            items = [make_item(item_target(item), item_name(item)) for item in raw_items]
         else:
             items = read_list(source)
         write_list(target, items)
@@ -826,7 +937,7 @@ class StartWorkApp:
             return
         target = Path(path)
         if target.suffix.lower() == ".json":
-            save_json(target, {"name": self.active_profile, "version": APP_VERSION, "items": self.items})
+            save_json(target, {"name": self.active_profile, "version": APP_VERSION, "items": [make_item(item_target(item), item_name(item)) for item in self.items]})
         else:
             write_list(target, self.items)
         self.status_var.set(f"Exported: {target.name}")
@@ -853,8 +964,9 @@ class StartWorkApp:
             messagebox.showinfo("Nothing selected", "Choose an item to launch.")
             return
         item = self.items[index]
-        ok, error = launch_item(item)
-        self.status_var.set(f"Launched: {item}" if ok else f"Launch error: {item}")
+        target = item_target(item)
+        ok, error = launch_item(target)
+        self.status_var.set(f"Launched: {item_name(item)}" if ok else f"Launch error: {item_name(item)}")
         if not ok:
             messagebox.showerror("Launch error", error or item)
 
@@ -865,9 +977,10 @@ class StartWorkApp:
         self.save(show_message=False)
         errors = []
         for item in self.items:
-            ok, error = launch_item(item)
+            target = item_target(item)
+            ok, error = launch_item(target)
             if not ok:
-                errors.append(f"{item}: {error}")
+                errors.append(f"{item_name(item)}: {error}")
         if errors:
             messagebox.showerror("Some items failed", "\n".join(errors))
             self.status_var.set(f"Launched with errors: {len(errors)}")
