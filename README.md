@@ -1,6 +1,6 @@
 # StartWork Launcher
 
-Version: `1.3.2`
+Version: `1.3.3`
 
 StartWork Launcher is a small Windows app for launching a saved set of work apps, folders, files, and websites.
 
@@ -27,7 +27,7 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 For regular users, download the ready archive:
 
 ```text
-release/StartWorkLauncher-1.3.2.zip
+release/StartWorkLauncher-1.3.3.zip
 ```
 
 Unzip it and run:

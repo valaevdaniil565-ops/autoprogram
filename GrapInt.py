@@ -339,6 +339,7 @@ class StartWorkApp:
         self.profile_var = StringVar(value=self.display_profile(self.active_profile))
         self.entry_var = StringVar()
         self.language_var = StringVar(value=self.settings.get("language", "en"))
+        self.language_display_var = StringVar()
         self.status_var = StringVar(value=self.t("Ready"))
         self.items = []
         self.images = {}
@@ -358,7 +359,7 @@ class StartWorkApp:
         return translate(language, text)
 
     def set_language(self, _event=None):
-        selected = self.language_var.get()
+        selected = self.language_display_var.get() or self.language_var.get()
         code = selected.split(" - ", 1)[0] if " - " in selected else selected
         if code not in LANGUAGES:
             for key, label in LANGUAGES.items():
@@ -378,8 +379,9 @@ class StartWorkApp:
         ttk.Label(parent, text=self.t("Language"), style="Panel.TLabel").pack(side="left", padx=(12, 6))
         values = [f"{code} - {label}" for code, label in LANGUAGES.items()]
         code = self.settings.get("language", self.language_var.get() or "en")
-        self.language_var.set(f"{code} - {LANGUAGES.get(code, code)}")
-        box = ttk.Combobox(parent, textvariable=self.language_var, values=values, state="readonly", width=16)
+        self.language_var.set(code)
+        self.language_display_var.set(f"{code} - {LANGUAGES.get(code, code)}")
+        box = ttk.Combobox(parent, textvariable=self.language_display_var, values=values, state="readonly", width=16)
         box.pack(side="left")
         box.bind("<<ComboboxSelected>>", self.set_language)
         return box
@@ -704,7 +706,8 @@ class StartWorkApp:
             self.entry_var.set(self.items[index])
 
     def add_item(self):
-        value = normalize_item(self.entry_var.get())
+        raw_value = self.entry.get() if hasattr(self, "entry") else self.entry_var.get()
+        value = normalize_item(raw_value)
         if not value:
             messagebox.showwarning("Empty item", "Enter an app, path, file, folder, or link.")
             return
@@ -759,7 +762,8 @@ class StartWorkApp:
         if index is None:
             messagebox.showinfo("Nothing selected", "Choose an item to update.")
             return
-        value = normalize_item(self.entry_var.get())
+        raw_value = self.entry.get() if hasattr(self, "entry") else self.entry_var.get()
+        value = normalize_item(raw_value)
         if not value:
             messagebox.showwarning("Empty item", "Enter a new value.")
             return
