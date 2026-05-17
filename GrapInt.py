@@ -7,7 +7,7 @@ import sys
 import urllib.request
 import webbrowser
 from pathlib import Path
-from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog
+from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog, Toplevel, PhotoImage
 from tkinter import Listbox
 from tkinter import ttk
 
@@ -30,9 +30,10 @@ PROFILES_DIR = APP_DIR / "profiles"
 SETTINGS_PATH = APP_DIR / "settings.json"
 PROFILE_META_PATH = APP_DIR / "profile_meta.json"
 ICON_PATH = APP_DIR / "StartWork.ico"
+LOGO_PATH = APP_DIR / "StartWork-icon.png"
 VERSION_PATH = APP_DIR / "VERSION"
 DEFAULT_PROFILE = "Work"
-APP_VERSION = VERSION_PATH.read_text(encoding="utf-8").strip() if VERSION_PATH.exists() else "1.1.0"
+APP_VERSION = VERSION_PATH.read_text(encoding="utf-8").strip() if VERSION_PATH.exists() else "1.2.0"
 
 BG = "#0f172a"
 PANEL = "#172033"
@@ -142,6 +143,53 @@ def launch_item(item):
         return False, str(exc)
 
 
+def candidate_paths(*parts):
+    roots = [
+        os.environ.get("ProgramFiles", ""),
+        os.environ.get("ProgramFiles(x86)", ""),
+        os.environ.get("LOCALAPPDATA", ""),
+        os.environ.get("APPDATA", ""),
+        os.environ.get("WINDIR", ""),
+    ]
+    return [str(Path(root, *parts)) for root in roots if root]
+
+
+def command_exists(command):
+    from shutil import which
+    return which(command) is not None
+
+
+def detect_app_library():
+    curated = [
+        ("Google Chrome", candidate_paths("Google", "Chrome", "Application", "chrome.exe")),
+        ("Microsoft Edge", candidate_paths("Microsoft", "Edge", "Application", "msedge.exe")),
+        ("Mozilla Firefox", candidate_paths("Mozilla Firefox", "firefox.exe")),
+        ("Brave Browser", candidate_paths("BraveSoftware", "Brave-Browser", "Application", "brave.exe")),
+        ("Opera", candidate_paths("Programs", "Opera", "opera.exe")),
+        ("Telegram", [str(Path(os.environ.get("APPDATA", ""), "Telegram Desktop", "Telegram.exe"))]),
+        ("Discord", [str(Path(os.environ.get("LOCALAPPDATA", ""), "Discord", "Update.exe"))]),
+        ("Steam", candidate_paths("Steam", "steam.exe")),
+        ("Visual Studio Code", [str(Path(os.environ.get("LOCALAPPDATA", ""), "Programs", "Microsoft VS Code", "Code.exe"))] + candidate_paths("Microsoft VS Code", "Code.exe")),
+        ("Notepad", ["notepad"]),
+        ("Calculator", ["calc"]),
+        ("Paint", ["mspaint"]),
+        ("File Explorer", ["explorer"]),
+    ]
+    found = []
+    seen = set()
+    for name, paths in curated:
+        for path in paths:
+            if not path:
+                continue
+            if os.path.exists(path) or ("\\" not in path and "/" not in path and command_exists(path)):
+                key = (name.lower(), path.lower())
+                if key not in seen:
+                    found.append({"name": name, "path": path})
+                    seen.add(key)
+                break
+    return found
+
+
 def command_for_startup():
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}"'
@@ -195,12 +243,10 @@ class StartWorkApp:
         self.entry_var = StringVar()
         self.status_var = StringVar(value="Ready")
         self.items = []
+        self.images = {}
 
         self.setup_style()
-        self.build_ui()
-        self.bind_hotkeys()
-        self.load_profile(self.active_profile, save_current=False)
-        self.run_first_launch_wizard()
+        self.show_profile_selector()
         self.maybe_auto_launch()
 
     @property
@@ -229,13 +275,96 @@ class StartWorkApp:
         style.map("Danger.TButton", background=[("active", "#5f2435")])
         style.configure("Vertical.TScrollbar", background=PANEL_LIGHT, troughcolor=PANEL, bordercolor=PANEL, arrowcolor=TEXT)
 
+    def clear_root(self):
+        for child in self.root.winfo_children():
+            child.destroy()
+
+    def get_avatar_image(self, profile, size=96):
+        meta = self.profile_meta.get(profile, {})
+        avatar = meta.get("avatar")
+        path = Path(avatar) if avatar else LOGO_PATH
+        if not path.exists():
+            path = LOGO_PATH
+        key = f"{profile}:{path}:{size}"
+        try:
+            image = PhotoImage(file=str(path))
+            factor = max(1, image.width() // size, image.height() // size)
+            if factor > 1:
+                image = image.subsample(factor, factor)
+            self.images[key] = image
+            return image
+        except Exception:
+            return None
+
+    def show_profile_selector(self):
+        self.clear_root()
+        self.images.clear()
+        wrap = ttk.Frame(self.root, padding=28)
+        wrap.pack(fill="both", expand=True)
+        top = ttk.Frame(wrap)
+        top.pack(fill="x")
+        logo = self.get_avatar_image("__logo__", 56)
+        if logo:
+            ttk.Label(top, image=logo, background=BG).pack(side="left", padx=(0, 12))
+        ttk.Label(top, text=APP_NAME, style="Title.TLabel").pack(side="left")
+        ttk.Button(top, text="X", command=self.root.destroy).pack(side="right")
+
+        center = ttk.Frame(wrap)
+        center.pack(expand=True)
+        ttk.Label(center, text="Who is working?", style="Title.TLabel").pack(pady=(0, 28))
+        tiles = ttk.Frame(center)
+        tiles.pack()
+        self.profiles = list_profiles()
+        for profile in self.profiles:
+            self.profile_tile(tiles, profile).pack(side="left", padx=12)
+        self.add_profile_tile(tiles).pack(side="left", padx=12)
+        ttk.Label(center, text="Choose a profile. Add your own avatar inside profile settings.", style="Muted.TLabel").pack(pady=(24, 0))
+
+    def profile_tile(self, parent, profile):
+        frame = ttk.Frame(parent, style="Panel.TFrame", padding=10)
+        image = self.get_avatar_image(profile, 96)
+        if image:
+            label = ttk.Label(frame, image=image, background=PANEL)
+        else:
+            label = ttk.Label(frame, text=self.display_profile(profile).split(" ")[0], style="Panel.TLabel", font=("Segoe UI Semibold", 24))
+        label.pack()
+        name = ttk.Label(frame, text=profile, style="Panel.TLabel")
+        name.pack(pady=(8, 0))
+        for widget in (frame, label, name):
+            widget.bind("<Button-1>", lambda _event, p=profile: self.open_profile(p))
+        return frame
+
+    def add_profile_tile(self, parent):
+        frame = ttk.Frame(parent, style="Panel.TFrame", padding=18)
+        plus = ttk.Label(frame, text="+", style="Panel.TLabel", font=("Segoe UI Semibold", 48))
+        plus.pack()
+        name = ttk.Label(frame, text="New", style="Panel.TLabel")
+        name.pack(pady=(8, 0))
+        for widget in (frame, plus, name):
+            widget.bind("<Button-1>", lambda _event: self.create_profile(from_selector=True))
+        return frame
+
+    def open_profile(self, profile):
+        self.active_profile = profile
+        self.build_ui()
+        self.bind_hotkeys()
+        self.load_profile(profile, save_current=False)
+        self.run_first_launch_wizard()
+
     def build_ui(self):
+        self.clear_root()
         outer = ttk.Frame(self.root, padding=24)
         outer.pack(fill="both", expand=True)
         header = ttk.Frame(outer)
         header.pack(fill="x", pady=(0, 18))
-        ttk.Label(header, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
-        ttk.Label(header, text="Profiles, hotkeys, startup launch, import/export, and one-click work setup.", style="Muted.TLabel").pack(anchor="w", pady=(5, 0))
+        logo = self.get_avatar_image(self.active_profile, 48)
+        if logo:
+            ttk.Label(header, image=logo, background=BG).pack(side="left", padx=(0, 12))
+        title_box = ttk.Frame(header)
+        title_box.pack(side="left")
+        ttk.Label(title_box, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
+        ttk.Label(title_box, text="Profiles, avatars, app library, hotkeys, startup launch, import/export.", style="Muted.TLabel").pack(anchor="w", pady=(5, 0))
+        ttk.Button(header, text="Switch Profile", command=self.show_profile_selector).pack(side="right")
 
         content = ttk.Frame(outer, style="Panel.TFrame", padding=18)
         content.pack(fill="both", expand=True)
@@ -248,6 +377,7 @@ class StartWorkApp:
         self.profile_box.bind("<<ComboboxSelected>>", self.on_profile_selected)
         ttk.Button(profile_row, text="New", command=self.create_profile).pack(side="left", padx=(10, 0))
         ttk.Button(profile_row, text="Rename", command=self.rename_profile).pack(side="left", padx=(8, 0))
+        ttk.Button(profile_row, text="Avatar", command=self.change_profile_avatar).pack(side="left", padx=(8, 0))
         ttk.Button(profile_row, text="Icon", command=self.change_profile_icon).pack(side="left", padx=(8, 0))
         ttk.Button(profile_row, text="Delete", style="Danger.TButton", command=self.delete_profile).pack(side="left", padx=(8, 0))
 
@@ -257,6 +387,7 @@ class StartWorkApp:
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", lambda _event: self.add_item())
         ttk.Button(input_row, text="Add", style="Primary.TButton", command=self.add_item).pack(side="left", padx=(10, 0))
+        ttk.Button(input_row, text="Library", command=self.open_app_library).pack(side="left", padx=(8, 0))
         ttk.Button(input_row, text="File", command=self.pick_file).pack(side="left", padx=(8, 0))
         ttk.Button(input_row, text="Folder", command=self.pick_folder).pack(side="left", padx=(8, 0))
         ttk.Button(input_row, text="Link", command=self.add_link_from_dialog).pack(side="left", padx=(8, 0))
@@ -347,10 +478,10 @@ class StartWorkApp:
     def maybe_auto_launch(self):
         profile = self.settings.get("startup_launch_profile")
         if self.settings.get("auto_launch_on_start") and profile in self.profiles:
-            self.load_profile(profile)
+            self.open_profile(profile)
             self.root.after(800, self.launch_all)
 
-    def create_profile(self):
+    def create_profile(self, from_selector=False):
         name = simpledialog.askstring("New profile", "Profile name:", parent=self.root)
         if not name:
             return
@@ -363,7 +494,10 @@ class StartWorkApp:
         self.profile_meta.setdefault(clean, {"icon": "Rocket"})
         save_json(PROFILE_META_PATH, self.profile_meta)
         self.reload_profiles()
-        self.load_profile(clean)
+        if from_selector:
+            self.show_profile_selector()
+        else:
+            self.load_profile(clean)
 
     def rename_profile(self):
         old_name = self.active_profile
@@ -396,6 +530,15 @@ class StartWorkApp:
         save_json(PROFILE_META_PATH, self.profile_meta)
         self.reload_profiles()
         self.profile_var.set(self.display_profile(self.active_profile))
+
+    def change_profile_avatar(self):
+        path = filedialog.askopenfilename(title="Choose avatar image", filetypes=[("PNG/GIF images", "*.png *.gif"), ("All files", "*.*")])
+        if not path:
+            return
+        self.profile_meta.setdefault(self.active_profile, {})["avatar"] = path
+        save_json(PROFILE_META_PATH, self.profile_meta)
+        self.build_ui()
+        self.load_profile(self.active_profile, save_current=False)
 
     def delete_profile(self):
         if len(self.profiles) <= 1:
@@ -437,6 +580,36 @@ class StartWorkApp:
         self.save(show_message=False)
         self.refresh_list()
         self.status_var.set(f"Added: {value}")
+
+    def open_app_library(self):
+        apps = detect_app_library()
+        win = Toplevel(self.root)
+        win.title("App Library")
+        win.geometry("700x440")
+        win.configure(bg=BG)
+        ttk.Label(win, text="Detected apps", style="Title.TLabel").pack(anchor="w", padx=18, pady=(18, 6))
+        ttk.Label(win, text="Select Telegram, a browser, editor, or Windows tool and add it to this profile.", style="Muted.TLabel").pack(anchor="w", padx=18, pady=(0, 12))
+        frame = ttk.Frame(win, style="Panel.TFrame", padding=14)
+        frame.pack(fill="both", expand=True, padx=18, pady=(0, 18))
+        box = Listbox(frame, bg=ENTRY, fg=TEXT, selectbackground=ACCENT_DARK, selectforeground="#ffffff", relief="flat", font=("Segoe UI", 10), height=12)
+        box.pack(fill="both", expand=True)
+        if apps:
+            for app in apps:
+                box.insert(END, f"{app['name']}    |    {app['path']}")
+        else:
+            box.insert(END, "No common apps detected. Use File or Folder instead.")
+
+        def add_selected():
+            selection = box.curselection()
+            if not selection or not apps:
+                return
+            item = apps[selection[0]]["path"]
+            self.items.append(item)
+            self.save(show_message=False)
+            self.refresh_list()
+            win.destroy()
+
+        ttk.Button(frame, text="Add Selected", style="Primary.TButton", command=add_selected).pack(anchor="e", pady=(12, 0))
 
     def add_link_from_dialog(self):
         value = simpledialog.askstring("Add link", "Paste link:", parent=self.root)
