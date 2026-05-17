@@ -352,7 +352,10 @@ class StartWorkApp:
         return profile_path(self.active_profile)
 
     def t(self, text):
-        return translate(self.language_var.get() if hasattr(self, "language_var") else self.settings.get("language", "en"), text)
+        language = self.language_var.get() if hasattr(self, "language_var") else self.settings.get("language", "en")
+        if " - " in language:
+            language = language.split(" - ", 1)[0]
+        return translate(language, text)
 
     def set_language(self, _event=None):
         selected = self.language_var.get()
