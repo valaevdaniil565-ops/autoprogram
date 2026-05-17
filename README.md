@@ -14,6 +14,14 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 
 ## Run
 
+This project is Python source code, not a compiled `.exe`.
+
+The other user must have Python 3 installed on Windows. During installation, enable:
+
+```text
+Add python.exe to PATH
+```
+
 Use:
 
 ```bat
@@ -31,3 +39,13 @@ pythonw StartWorkApp.pyw
 Profiles are stored in the `profiles` folder as `.txt` files. The default profile is `Работа`.
 
 Each non-empty line is one item to launch. Lines starting with `#` are comments.
+
+## Common Problem
+
+If nothing happens after double-clicking the launcher, Python is probably missing or unavailable in `PATH`.
+
+Install Python 3 from:
+
+https://www.python.org/downloads/
+
+Then run `LaunchStartWork.cmd` again.
