@@ -1,6 +1,6 @@
 # StartWork Launcher
 
-Version: `1.2.0`
+Version: `1.3.0`
 
 StartWork Launcher is a small Windows app for launching a saved set of work apps, folders, files, and websites.
 
@@ -18,6 +18,7 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 - Steam-like profile picker.
 - Custom profile avatars.
 - Detected app library for browsers, Telegram, Steam, VS Code, and Windows tools.
+- Language selector with English, Russian, Chinese, Spanish, German, French, Japanese, and Korean.
 - Built-in update checker.
 - PowerShell fallback launcher for `apps.txt`.
 
@@ -26,7 +27,7 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 For regular users, download the ready archive:
 
 ```text
-release/StartWorkLauncher-1.2.0.zip
+release/StartWorkLauncher-1.3.0.zip
 ```
 
 Unzip it and run:

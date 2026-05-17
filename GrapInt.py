@@ -33,7 +33,7 @@ ICON_PATH = APP_DIR / "StartWork.ico"
 LOGO_PATH = APP_DIR / "StartWork-icon.png"
 VERSION_PATH = APP_DIR / "VERSION"
 DEFAULT_PROFILE = "Work"
-APP_VERSION = VERSION_PATH.read_text(encoding="utf-8").strip() if VERSION_PATH.exists() else "1.2.0"
+APP_VERSION = VERSION_PATH.read_text(encoding="utf-8").strip() if VERSION_PATH.exists() else "1.3.0"
 
 BG = "#0f172a"
 PANEL = "#172033"
@@ -57,6 +57,103 @@ PROFILE_MARKS = {
     "Mail": "[@]",
     "Code": "[{}]",
 }
+
+LANGUAGES = {
+    "en": "English",
+    "ru": "Русский",
+    "zh": "中文",
+    "es": "Español",
+    "de": "Deutsch",
+    "fr": "Français",
+    "ja": "日本語",
+    "ko": "한국어",
+}
+
+TRANSLATIONS = {
+    "en": {},
+    "ru": {
+        "Ready": "Готово",
+        "Who is working?": "Кто работает?",
+        "Choose a profile. Add your own avatar inside profile settings.": "Выберите профиль. Свой аватар можно добавить в настройках профиля.",
+        "New": "Новый",
+        "Switch Profile": "Сменить профиль",
+        "Profiles, avatars, app library, hotkeys, startup launch, import/export.": "Профили, аватары, библиотека приложений, горячие клавиши, автозапуск, импорт/экспорт.",
+        "Profile": "Профиль",
+        "Rename": "Переименовать",
+        "Avatar": "Аватар",
+        "Icon": "Иконка",
+        "Delete": "Удалить",
+        "Add": "Добавить",
+        "Library": "Библиотека",
+        "File": "Файл",
+        "Folder": "Папка",
+        "Link": "Ссылка",
+        "Launch Profile": "Запустить профиль",
+        "Launch Selected": "Запустить выбранное",
+        "Update": "Изменить",
+        "Remove": "Убрать",
+        "Export": "Экспорт",
+        "Import": "Импорт",
+        "Save": "Сохранить",
+        "Check Updates": "Проверить обновления",
+        "About": "О программе",
+        "Language": "Язык",
+        "Hotkeys: Ctrl+Enter launch, Ctrl+N new, Ctrl+I import, Ctrl+E export, Del remove": "Горячие клавиши: Ctrl+Enter запуск, Ctrl+N новый, Ctrl+I импорт, Ctrl+E экспорт, Del удалить",
+        "Welcome": "Добро пожаловать",
+        "Create profiles for work, study, personal tasks, then launch everything with one button.": "Создавайте профили для работы, учёбы и личных задач, а потом запускайте всё одной кнопкой.",
+        "New profile": "Новый профиль",
+        "Profile name:": "Название профиля:",
+        "Already exists": "Уже существует",
+        "A profile with this name already exists.": "Профиль с таким названием уже существует.",
+        "Rename profile": "Переименовать профиль",
+        "New name:": "Новое название:",
+        "Profile icon": "Иконка профиля",
+        "Choose: ": "Выберите: ",
+        "Unknown icon": "Неизвестная иконка",
+        "Use one of: ": "Используйте одну из: ",
+        "Choose avatar image": "Выберите аватар",
+        "Cannot delete": "Нельзя удалить",
+        "At least one profile must remain.": "Должен остаться хотя бы один профиль.",
+        "Delete profile": "Удалить профиль",
+        "Empty item": "Пустая строка",
+        "Enter an app, path, file, folder, or link.": "Введите приложение, путь, файл, папку или ссылку.",
+        "App Library": "Библиотека приложений",
+        "Detected apps": "Найденные приложения",
+        "Select Telegram, a browser, editor, or Windows tool and add it to this profile.": "Выберите Telegram, браузер, редактор или системный инструмент и добавьте в профиль.",
+        "No common apps detected. Use File or Folder instead.": "Стандартные приложения не найдены. Используйте Файл или Папка.",
+        "Add Selected": "Добавить выбранное",
+        "Add link": "Добавить ссылку",
+        "Paste link:": "Вставьте ссылку:",
+        "Nothing selected": "Ничего не выбрано",
+        "Choose an item to update.": "Выберите строку для изменения.",
+        "Enter a new value.": "Введите новое значение.",
+        "Saved": "Сохранено",
+        "Startup error": "Ошибка автозапуска",
+        "Choose an item to launch.": "Выберите строку для запуска.",
+        "Launch error": "Ошибка запуска",
+        "Empty profile": "Пустой профиль",
+        "Add at least one app, file, folder, or link.": "Добавьте хотя бы одно приложение, файл, папку или ссылку.",
+        "Some items failed": "Часть элементов не запустилась",
+        "Update available": "Доступно обновление",
+        "Updates": "Обновления",
+        "Update check failed": "Не удалось проверить обновления",
+        "Open GitHub?": "Открыть GitHub?",
+        "About": "О программе",
+        "A one-click launcher for Windows work profiles.": "Лаунчер рабочих профилей Windows в один клик.",
+    },
+    "zh": {
+        "Ready": "就绪", "Who is working?": "谁在使用？", "New": "新建", "Switch Profile": "切换配置", "Profile": "配置", "Rename": "重命名", "Avatar": "头像", "Icon": "图标", "Delete": "删除", "Add": "添加", "Library": "应用库", "File": "文件", "Folder": "文件夹", "Link": "链接", "Launch Profile": "启动配置", "Launch Selected": "启动所选", "Update": "修改", "Remove": "移除", "Export": "导出", "Import": "导入", "Save": "保存", "Check Updates": "检查更新", "About": "关于", "Language": "语言", "Detected apps": "已检测应用", "Add Selected": "添加所选", "App Library": "应用库", "Nothing selected": "未选择", "Empty profile": "配置为空", "Updates": "更新"
+    },
+    "es": {"Ready": "Listo", "Who is working?": "¿Quién trabaja?", "New": "Nuevo", "Switch Profile": "Cambiar perfil", "Profile": "Perfil", "Rename": "Renombrar", "Avatar": "Avatar", "Delete": "Eliminar", "Add": "Añadir", "Library": "Biblioteca", "File": "Archivo", "Folder": "Carpeta", "Link": "Enlace", "Launch Profile": "Iniciar perfil", "Save": "Guardar", "Language": "Idioma"},
+    "de": {"Ready": "Bereit", "Who is working?": "Wer arbeitet?", "New": "Neu", "Switch Profile": "Profil wechseln", "Profile": "Profil", "Rename": "Umbenennen", "Avatar": "Avatar", "Delete": "Löschen", "Add": "Hinzufügen", "Library": "Bibliothek", "File": "Datei", "Folder": "Ordner", "Link": "Link", "Launch Profile": "Profil starten", "Save": "Speichern", "Language": "Sprache"},
+    "fr": {"Ready": "Prêt", "Who is working?": "Qui travaille ?", "New": "Nouveau", "Switch Profile": "Changer de profil", "Profile": "Profil", "Rename": "Renommer", "Avatar": "Avatar", "Delete": "Supprimer", "Add": "Ajouter", "Library": "Bibliothèque", "File": "Fichier", "Folder": "Dossier", "Link": "Lien", "Launch Profile": "Lancer le profil", "Save": "Enregistrer", "Language": "Langue"},
+    "ja": {"Ready": "準備完了", "Who is working?": "誰が使いますか？", "New": "新規", "Switch Profile": "プロフィール切替", "Profile": "プロフィール", "Rename": "名前変更", "Avatar": "アバター", "Delete": "削除", "Add": "追加", "Library": "ライブラリ", "File": "ファイル", "Folder": "フォルダー", "Link": "リンク", "Launch Profile": "起動", "Save": "保存", "Language": "言語"},
+    "ko": {"Ready": "준비됨", "Who is working?": "누가 사용하나요?", "New": "새로 만들기", "Switch Profile": "프로필 변경", "Profile": "프로필", "Rename": "이름 변경", "Avatar": "아바타", "Delete": "삭제", "Add": "추가", "Library": "라이브러리", "File": "파일", "Folder": "폴더", "Link": "링크", "Launch Profile": "프로필 실행", "Save": "저장", "Language": "언어"},
+}
+
+
+def translate(language, text):
+    return TRANSLATIONS.get(language, {}).get(text, text)
 
 
 def load_json(path, default):
@@ -241,7 +338,8 @@ class StartWorkApp:
         self.active_profile = DEFAULT_PROFILE if DEFAULT_PROFILE in self.profiles else self.profiles[0]
         self.profile_var = StringVar(value=self.display_profile(self.active_profile))
         self.entry_var = StringVar()
-        self.status_var = StringVar(value="Ready")
+        self.language_var = StringVar(value=self.settings.get("language", "en"))
+        self.status_var = StringVar(value=self.t("Ready"))
         self.items = []
         self.images = {}
 
@@ -252,6 +350,26 @@ class StartWorkApp:
     @property
     def current_profile_path(self):
         return profile_path(self.active_profile)
+
+    def t(self, text):
+        return translate(self.language_var.get() if hasattr(self, "language_var") else self.settings.get("language", "en"), text)
+
+    def set_language(self, _event=None):
+        selected = self.language_var.get()
+        code = selected.split(" - ", 1)[0] if " - " in selected else selected
+        if code not in LANGUAGES:
+            for key, label in LANGUAGES.items():
+                if label == selected:
+                    code = key
+                    break
+        self.settings["language"] = code
+        save_json(SETTINGS_PATH, self.settings)
+        self.language_var.set(code)
+        if hasattr(self, "listbox"):
+            self.build_ui()
+            self.load_profile(self.active_profile, save_current=False)
+        else:
+            self.show_profile_selector()
 
     def setup_style(self):
         style = ttk.Style()
@@ -311,14 +429,14 @@ class StartWorkApp:
 
         center = ttk.Frame(wrap)
         center.pack(expand=True)
-        ttk.Label(center, text="Who is working?", style="Title.TLabel").pack(pady=(0, 28))
+        ttk.Label(center, text=self.t("Who is working?"), style="Title.TLabel").pack(pady=(0, 28))
         tiles = ttk.Frame(center)
         tiles.pack()
         self.profiles = list_profiles()
         for profile in self.profiles:
             self.profile_tile(tiles, profile).pack(side="left", padx=12)
         self.add_profile_tile(tiles).pack(side="left", padx=12)
-        ttk.Label(center, text="Choose a profile. Add your own avatar inside profile settings.", style="Muted.TLabel").pack(pady=(24, 0))
+        ttk.Label(center, text=self.t("Choose a profile. Add your own avatar inside profile settings."), style="Muted.TLabel").pack(pady=(24, 0))
 
     def profile_tile(self, parent, profile):
         frame = ttk.Frame(parent, style="Panel.TFrame", padding=10)
@@ -338,7 +456,7 @@ class StartWorkApp:
         frame = ttk.Frame(parent, style="Panel.TFrame", padding=18)
         plus = ttk.Label(frame, text="+", style="Panel.TLabel", font=("Segoe UI Semibold", 48))
         plus.pack()
-        name = ttk.Label(frame, text="New", style="Panel.TLabel")
+        name = ttk.Label(frame, text=self.t("New"), style="Panel.TLabel")
         name.pack(pady=(8, 0))
         for widget in (frame, plus, name):
             widget.bind("<Button-1>", lambda _event: self.create_profile(from_selector=True))
@@ -363,34 +481,34 @@ class StartWorkApp:
         title_box = ttk.Frame(header)
         title_box.pack(side="left")
         ttk.Label(title_box, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
-        ttk.Label(title_box, text="Profiles, avatars, app library, hotkeys, startup launch, import/export.", style="Muted.TLabel").pack(anchor="w", pady=(5, 0))
-        ttk.Button(header, text="Switch Profile", command=self.show_profile_selector).pack(side="right")
+        ttk.Label(title_box, text=self.t("Profiles, avatars, app library, hotkeys, startup launch, import/export."), style="Muted.TLabel").pack(anchor="w", pady=(5, 0))
+        ttk.Button(header, text=self.t("Switch Profile"), command=self.show_profile_selector).pack(side="right")
 
         content = ttk.Frame(outer, style="Panel.TFrame", padding=18)
         content.pack(fill="both", expand=True)
 
         profile_row = ttk.Frame(content, style="Toolbar.TFrame")
         profile_row.pack(fill="x", pady=(0, 12))
-        ttk.Label(profile_row, text="Profile", style="Panel.TLabel").pack(side="left", padx=(0, 10))
+        ttk.Label(profile_row, text=self.t("Profile"), style="Panel.TLabel").pack(side="left", padx=(0, 10))
         self.profile_box = ttk.Combobox(profile_row, textvariable=self.profile_var, values=self.display_profiles(), state="readonly", width=28)
         self.profile_box.pack(side="left")
         self.profile_box.bind("<<ComboboxSelected>>", self.on_profile_selected)
-        ttk.Button(profile_row, text="New", command=self.create_profile).pack(side="left", padx=(10, 0))
-        ttk.Button(profile_row, text="Rename", command=self.rename_profile).pack(side="left", padx=(8, 0))
-        ttk.Button(profile_row, text="Avatar", command=self.change_profile_avatar).pack(side="left", padx=(8, 0))
-        ttk.Button(profile_row, text="Icon", command=self.change_profile_icon).pack(side="left", padx=(8, 0))
-        ttk.Button(profile_row, text="Delete", style="Danger.TButton", command=self.delete_profile).pack(side="left", padx=(8, 0))
+        ttk.Button(profile_row, text=self.t("New"), command=self.create_profile).pack(side="left", padx=(10, 0))
+        ttk.Button(profile_row, text=self.t("Rename"), command=self.rename_profile).pack(side="left", padx=(8, 0))
+        ttk.Button(profile_row, text=self.t("Avatar"), command=self.change_profile_avatar).pack(side="left", padx=(8, 0))
+        ttk.Button(profile_row, text=self.t("Icon"), command=self.change_profile_icon).pack(side="left", padx=(8, 0))
+        ttk.Button(profile_row, text=self.t("Delete"), style="Danger.TButton", command=self.delete_profile).pack(side="left", padx=(8, 0))
 
         input_row = ttk.Frame(content, style="Toolbar.TFrame")
         input_row.pack(fill="x", pady=(0, 12))
         self.entry = ttk.Entry(input_row, textvariable=self.entry_var)
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", lambda _event: self.add_item())
-        ttk.Button(input_row, text="Add", style="Primary.TButton", command=self.add_item).pack(side="left", padx=(10, 0))
-        ttk.Button(input_row, text="Library", command=self.open_app_library).pack(side="left", padx=(8, 0))
-        ttk.Button(input_row, text="File", command=self.pick_file).pack(side="left", padx=(8, 0))
-        ttk.Button(input_row, text="Folder", command=self.pick_folder).pack(side="left", padx=(8, 0))
-        ttk.Button(input_row, text="Link", command=self.add_link_from_dialog).pack(side="left", padx=(8, 0))
+        ttk.Button(input_row, text=self.t("Add"), style="Primary.TButton", command=self.add_item).pack(side="left", padx=(10, 0))
+        ttk.Button(input_row, text=self.t("Library"), command=self.open_app_library).pack(side="left", padx=(8, 0))
+        ttk.Button(input_row, text=self.t("File"), command=self.pick_file).pack(side="left", padx=(8, 0))
+        ttk.Button(input_row, text=self.t("Folder"), command=self.pick_folder).pack(side="left", padx=(8, 0))
+        ttk.Button(input_row, text=self.t("Link"), command=self.add_link_from_dialog).pack(side="left", padx=(8, 0))
 
         list_frame = ttk.Frame(content, style="Panel.TFrame")
         list_frame.pack(fill="both", expand=True)
@@ -404,21 +522,21 @@ class StartWorkApp:
 
         actions = ttk.Frame(content, style="Toolbar.TFrame")
         actions.pack(fill="x", pady=(14, 0))
-        ttk.Button(actions, text="Launch Profile", style="Primary.TButton", command=self.launch_all).pack(side="left")
-        ttk.Button(actions, text="Launch Selected", command=self.launch_selected).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Update", command=self.update_selected).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Remove", style="Danger.TButton", command=self.delete_selected).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Export", command=self.export_profile).pack(side="right")
-        ttk.Button(actions, text="Import", command=self.import_profile).pack(side="right", padx=(0, 8))
-        ttk.Button(actions, text="Save", command=self.save).pack(side="right", padx=(0, 8))
+        ttk.Button(actions, text=self.t("Launch Profile"), style="Primary.TButton", command=self.launch_all).pack(side="left")
+        ttk.Button(actions, text=self.t("Launch Selected"), command=self.launch_selected).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text=self.t("Update"), command=self.update_selected).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text=self.t("Remove"), style="Danger.TButton", command=self.delete_selected).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text=self.t("Export"), command=self.export_profile).pack(side="right")
+        ttk.Button(actions, text=self.t("Import"), command=self.import_profile).pack(side="right", padx=(0, 8))
+        ttk.Button(actions, text=self.t("Save"), command=self.save).pack(side="right", padx=(0, 8))
 
         utility = ttk.Frame(content, style="Toolbar.TFrame")
         utility.pack(fill="x", pady=(10, 0))
         ttk.Button(utility, text="Startup: Off", command=self.toggle_startup).pack(side="left")
         self.startup_button = utility.winfo_children()[0]
-        ttk.Button(utility, text="Check Updates", command=self.check_updates).pack(side="left", padx=(8, 0))
-        ttk.Button(utility, text="About", command=self.show_about).pack(side="left", padx=(8, 0))
-        ttk.Label(utility, text="Hotkeys: Ctrl+Enter launch, Ctrl+N new, Ctrl+I import, Ctrl+E export, Del remove", style="Status.TLabel").pack(side="right")
+        ttk.Button(utility, text=self.t("Check Updates"), command=self.check_updates).pack(side="left", padx=(8, 0))
+        ttk.Button(utility, text=self.t("About"), command=self.show_about).pack(side="left", padx=(8, 0))
+        ttk.Label(utility, text=self.t("Hotkeys: Ctrl+Enter launch, Ctrl+N new, Ctrl+I import, Ctrl+E export, Del remove"), style="Status.TLabel").pack(side="right")
 
         ttk.Label(content, textvariable=self.status_var, style="Status.TLabel").pack(anchor="w", pady=(12, 0))
         self.refresh_startup_button()
@@ -556,7 +674,7 @@ class StartWorkApp:
         self.listbox.delete(0, END)
         for item in self.items:
             self.listbox.insert(END, item)
-        self.status_var.set(f"Profile: {self.active_profile}. Items: {len(self.items)}")
+        self.status_var.set(f"{self.t("Profile")}: {self.active_profile}. Items: {len(self.items)}")
 
     def sync_legacy_config(self):
         write_list(CONFIG_PATH, self.items)
@@ -587,8 +705,8 @@ class StartWorkApp:
         win.title("App Library")
         win.geometry("700x440")
         win.configure(bg=BG)
-        ttk.Label(win, text="Detected apps", style="Title.TLabel").pack(anchor="w", padx=18, pady=(18, 6))
-        ttk.Label(win, text="Select Telegram, a browser, editor, or Windows tool and add it to this profile.", style="Muted.TLabel").pack(anchor="w", padx=18, pady=(0, 12))
+        ttk.Label(win, text=self.t("Detected apps"), style="Title.TLabel").pack(anchor="w", padx=18, pady=(18, 6))
+        ttk.Label(win, text=self.t("Select Telegram, a browser, editor, or Windows tool and add it to this profile."), style="Muted.TLabel").pack(anchor="w", padx=18, pady=(0, 12))
         frame = ttk.Frame(win, style="Panel.TFrame", padding=14)
         frame.pack(fill="both", expand=True, padx=18, pady=(0, 18))
         box = Listbox(frame, bg=ENTRY, fg=TEXT, selectbackground=ACCENT_DARK, selectforeground="#ffffff", relief="flat", font=("Segoe UI", 10), height=12)
@@ -609,7 +727,7 @@ class StartWorkApp:
             self.refresh_list()
             win.destroy()
 
-        ttk.Button(frame, text="Add Selected", style="Primary.TButton", command=add_selected).pack(anchor="e", pady=(12, 0))
+        ttk.Button(frame, text=self.t("Add Selected"), style="Primary.TButton", command=add_selected).pack(anchor="e", pady=(12, 0))
 
     def add_link_from_dialog(self):
         value = simpledialog.askstring("Add link", "Paste link:", parent=self.root)
