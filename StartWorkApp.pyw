@@ -371,6 +371,16 @@ class StartWorkApp:
         else:
             self.show_profile_selector()
 
+    def add_language_selector(self, parent):
+        ttk.Label(parent, text=self.t("Language"), style="Panel.TLabel").pack(side="left", padx=(12, 6))
+        values = [f"{code} - {label}" for code, label in LANGUAGES.items()]
+        code = self.settings.get("language", self.language_var.get() or "en")
+        self.language_var.set(f"{code} - {LANGUAGES.get(code, code)}")
+        box = ttk.Combobox(parent, textvariable=self.language_var, values=values, state="readonly", width=16)
+        box.pack(side="left")
+        box.bind("<<ComboboxSelected>>", self.set_language)
+        return box
+
     def setup_style(self):
         style = ttk.Style()
         style.theme_use("clam")
@@ -425,6 +435,7 @@ class StartWorkApp:
         if logo:
             ttk.Label(top, image=logo, background=BG).pack(side="left", padx=(0, 12))
         ttk.Label(top, text=APP_NAME, style="Title.TLabel").pack(side="left")
+        self.add_language_selector(top)
         ttk.Button(top, text="X", command=self.root.destroy).pack(side="right")
 
         center = ttk.Frame(wrap)
@@ -482,6 +493,7 @@ class StartWorkApp:
         title_box.pack(side="left")
         ttk.Label(title_box, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
         ttk.Label(title_box, text=self.t("Profiles, avatars, app library, hotkeys, startup launch, import/export."), style="Muted.TLabel").pack(anchor="w", pady=(5, 0))
+        self.add_language_selector(header)
         ttk.Button(header, text=self.t("Switch Profile"), command=self.show_profile_selector).pack(side="right")
 
         content = ttk.Frame(outer, style="Panel.TFrame", padding=18)
