@@ -1,0 +1,7 @@
+# StartWorkLauncher apps list
+# One app, folder, file, or URL per line.
+
+https://mail.google.com
+https://mail.360.yandex.ru/?uid=1130000071686863#/inbox
+C:/Users/Пользователь/Desktop/TgWsProxy_windows.exe
+C:/Users/Пользователь/AppData/Roaming/Telegram Desktop/Telegram.exe
