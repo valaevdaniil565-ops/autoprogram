@@ -1,6 +1,6 @@
 # StartWork Launcher
 
-Version: `1.0.0`
+Version: `1.1.0`
 
 StartWork Launcher is a small Windows app for launching a saved set of work apps, folders, files, and websites.
 
@@ -10,6 +10,12 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 - Multiple launch profiles.
 - Add apps, folders, files, and links from the interface.
 - Launch a selected item or a full profile.
+- First-run wizard.
+- Import and export profiles.
+- Windows startup toggle.
+- Keyboard shortcuts.
+- Profile icons.
+- Built-in update checker.
 - PowerShell fallback launcher for `apps.txt`.
 
 ## Run
@@ -17,7 +23,7 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 For regular users, download the ready archive:
 
 ```text
-release/StartWorkLauncher-1.0.0.zip
+release/StartWorkLauncher-1.1.0.zip
 ```
 
 Unzip it and run:
@@ -27,6 +33,15 @@ StartWorkLauncher.exe
 ```
 
 The exe build does not require Python.
+
+## Hotkeys
+
+- `Ctrl+Enter`: launch current profile.
+- `Ctrl+N`: create profile.
+- `Ctrl+I`: import profile.
+- `Ctrl+E`: export profile.
+- `Delete`: remove selected item.
+- `F5`: save profile.
 
 ## Run From Source
 
@@ -52,7 +67,7 @@ pythonw StartWorkApp.pyw
 
 ## Profiles
 
-Profiles are stored in the `profiles` folder as `.txt` files. The default profile is `Работа`.
+Profiles are stored in the `profiles` folder as `.txt` files. The default profile is `Work`.
 
 Each non-empty line is one item to launch. Lines starting with `#` are comments.
 

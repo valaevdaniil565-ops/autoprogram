@@ -1,21 +1,38 @@
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import urllib.request
 import webbrowser
 from pathlib import Path
 from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog
 from tkinter import Listbox
 from tkinter import ttk
 
+try:
+    import winreg
+except ImportError:
+    winreg = None
+
+APP_NAME = "StartWork Launcher"
+GITHUB_URL = "https://github.com/valaevdaniil565-ops/autoprogram"
+RAW_VERSION_URL = "https://raw.githubusercontent.com/valaevdaniil565-ops/autoprogram/main/VERSION"
+
 if getattr(sys, "frozen", False):
     APP_DIR = Path(sys.executable).resolve().parent
 else:
     APP_DIR = Path(__file__).resolve().parent
+
 CONFIG_PATH = APP_DIR / "apps.txt"
 PROFILES_DIR = APP_DIR / "profiles"
+SETTINGS_PATH = APP_DIR / "settings.json"
+PROFILE_META_PATH = APP_DIR / "profile_meta.json"
 ICON_PATH = APP_DIR / "StartWork.ico"
-DEFAULT_PROFILE = "Работа"
+VERSION_PATH = APP_DIR / "VERSION"
+DEFAULT_PROFILE = "Work"
+APP_VERSION = VERSION_PATH.read_text(encoding="utf-8").strip() if VERSION_PATH.exists() else "1.1.0"
 
 BG = "#0f172a"
 PANEL = "#172033"
@@ -28,6 +45,30 @@ DANGER = "#fb7185"
 DANGER_BG = "#3f1d2a"
 BORDER = "#334155"
 ENTRY = "#0b1220"
+PROFILE_ICONS = ["Rocket", "Briefcase", "Home", "Study", "Star", "Tools", "Mail", "Code"]
+PROFILE_MARKS = {
+    "Rocket": "[>]",
+    "Briefcase": "[B]",
+    "Home": "[H]",
+    "Study": "[S]",
+    "Star": "[*]",
+    "Tools": "[T]",
+    "Mail": "[@]",
+    "Code": "[{}]",
+}
+
+
+def load_json(path, default):
+    if not path.exists():
+        return default.copy() if isinstance(default, dict) else default
+    try:
+        return json.loads(path.read_text(encoding="utf-8-sig"))
+    except Exception:
+        return default.copy() if isinstance(default, dict) else default
+
+
+def save_json(path, data):
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def profile_file_name(name):
@@ -41,7 +82,7 @@ def profile_path(name):
 
 
 def normalize_item(value):
-    value = value.strip()
+    value = (value or "").strip().strip('"')
     if value.lower().startswith("www."):
         return "https://" + value
     return value
@@ -50,7 +91,6 @@ def normalize_item(value):
 def read_list(path):
     if not path.exists():
         return []
-
     items = []
     for line in path.read_text(encoding="utf-8-sig").splitlines():
         value = line.strip().lstrip("\ufeff").strip()
@@ -67,19 +107,16 @@ def write_list(path, items):
         "# One app, folder, file, or URL per line.",
         "",
     ]
+    path.parent.mkdir(exist_ok=True)
     path.write_text("\n".join(header + items) + "\n", encoding="utf-8")
 
 
 def ensure_profiles():
     PROFILES_DIR.mkdir(exist_ok=True)
-    existing = sorted(PROFILES_DIR.glob("*.txt"))
-    if existing:
-        return
-
-    old_items = read_list(CONFIG_PATH)
-    write_list(PROFILES_DIR / f"{DEFAULT_PROFILE}.txt", old_items)
-    write_list(PROFILES_DIR / "Личное.txt", [])
-    write_list(PROFILES_DIR / "Учёба.txt", [])
+    if not any(PROFILES_DIR.glob("*.txt")):
+        write_list(PROFILES_DIR / f"{DEFAULT_PROFILE}.txt", [])
+    if not CONFIG_PATH.exists():
+        write_list(CONFIG_PATH, [])
 
 
 def list_profiles():
@@ -96,23 +133,51 @@ def launch_item(item):
         if item.startswith(("http://", "https://", "mailto:")):
             webbrowser.open(item)
             return True, None
-
         if os.path.exists(item):
             os.startfile(item)
             return True, None
-
         subprocess.Popen(item, shell=True)
         return True, None
     except Exception as exc:
         return False, str(exc)
 
 
+def command_for_startup():
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
+    return f'"{sys.executable}" "{Path(__file__).resolve()}"'
+
+
+def is_startup_enabled():
+    if winreg is None:
+        return False
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run") as key:
+            value, _ = winreg.QueryValueEx(key, APP_NAME)
+            return bool(value)
+    except OSError:
+        return False
+
+
+def set_startup_enabled(enabled):
+    if winreg is None:
+        raise RuntimeError("Windows startup registry is not available on this system.")
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE) as key:
+        if enabled:
+            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, command_for_startup())
+        else:
+            try:
+                winreg.DeleteValue(key, APP_NAME)
+            except FileNotFoundError:
+                pass
+
+
 class StartWorkApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("StartWork Launcher")
-        self.root.geometry("860x590")
-        self.root.minsize(760, 520)
+        self.root.title(f"{APP_NAME} {APP_VERSION}")
+        self.root.geometry("960x640")
+        self.root.minsize(820, 560)
         self.root.configure(bg=BG)
 
         if ICON_PATH.exists():
@@ -121,16 +186,22 @@ class StartWorkApp:
             except Exception:
                 pass
 
+        ensure_profiles()
+        self.settings = load_json(SETTINGS_PATH, {"first_run_done": False, "startup_launch_profile": "", "auto_launch_on_start": False})
+        self.profile_meta = load_json(PROFILE_META_PATH, {})
         self.profiles = list_profiles()
         self.active_profile = DEFAULT_PROFILE if DEFAULT_PROFILE in self.profiles else self.profiles[0]
-        self.profile_var = StringVar(value=self.active_profile)
+        self.profile_var = StringVar(value=self.display_profile(self.active_profile))
         self.entry_var = StringVar()
-        self.status_var = StringVar(value="Готов к запуску")
+        self.status_var = StringVar(value="Ready")
         self.items = []
 
         self.setup_style()
         self.build_ui()
-        self.load_profile(self.profile_var.get(), save_current=False)
+        self.bind_hotkeys()
+        self.load_profile(self.active_profile, save_current=False)
+        self.run_first_launch_wizard()
+        self.maybe_auto_launch()
 
     @property
     def current_profile_path(self):
@@ -150,7 +221,7 @@ class StartWorkApp:
         style.configure("TEntry", fieldbackground=ENTRY, foreground=TEXT, insertcolor=TEXT, bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER, padding=10)
         style.configure("TCombobox", fieldbackground=ENTRY, background=PANEL_LIGHT, foreground=TEXT, arrowcolor=TEXT, bordercolor=BORDER, padding=8)
         style.map("TCombobox", fieldbackground=[("readonly", ENTRY)], foreground=[("readonly", TEXT)])
-        style.configure("TButton", background=PANEL_LIGHT, foreground=TEXT, font=("Segoe UI Semibold", 10), padding=(14, 10), borderwidth=0, focusthickness=0)
+        style.configure("TButton", background=PANEL_LIGHT, foreground=TEXT, font=("Segoe UI Semibold", 10), padding=(12, 9), borderwidth=0, focusthickness=0)
         style.map("TButton", background=[("active", "#263653")], foreground=[("active", TEXT)])
         style.configure("Primary.TButton", background=ACCENT_DARK, foreground="#ffffff")
         style.map("Primary.TButton", background=[("active", ACCENT)])
@@ -161,128 +232,180 @@ class StartWorkApp:
     def build_ui(self):
         outer = ttk.Frame(self.root, padding=24)
         outer.pack(fill="both", expand=True)
-
         header = ttk.Frame(outer)
         header.pack(fill="x", pady=(0, 18))
-        ttk.Label(header, text="StartWork Launcher", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(header, text="Профили запуска для разных сценариев: работа, личное, учёба или свой набор.", style="Muted.TLabel").pack(anchor="w", pady=(5, 0))
+        ttk.Label(header, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
+        ttk.Label(header, text="Profiles, hotkeys, startup launch, import/export, and one-click work setup.", style="Muted.TLabel").pack(anchor="w", pady=(5, 0))
 
         content = ttk.Frame(outer, style="Panel.TFrame", padding=18)
         content.pack(fill="both", expand=True)
 
         profile_row = ttk.Frame(content, style="Toolbar.TFrame")
-        profile_row.pack(fill="x", pady=(0, 14))
-        ttk.Label(profile_row, text="Профиль", style="Panel.TLabel").pack(side="left", padx=(0, 10))
-
-        self.profile_box = ttk.Combobox(profile_row, textvariable=self.profile_var, values=self.profiles, state="readonly", width=24)
+        profile_row.pack(fill="x", pady=(0, 12))
+        ttk.Label(profile_row, text="Profile", style="Panel.TLabel").pack(side="left", padx=(0, 10))
+        self.profile_box = ttk.Combobox(profile_row, textvariable=self.profile_var, values=self.display_profiles(), state="readonly", width=28)
         self.profile_box.pack(side="left")
         self.profile_box.bind("<<ComboboxSelected>>", self.on_profile_selected)
-
-        ttk.Button(profile_row, text="Новый", command=self.create_profile).pack(side="left", padx=(10, 0))
-        ttk.Button(profile_row, text="Переименовать", command=self.rename_profile).pack(side="left", padx=(8, 0))
-        ttk.Button(profile_row, text="Удалить профиль", style="Danger.TButton", command=self.delete_profile).pack(side="left", padx=(8, 0))
+        ttk.Button(profile_row, text="New", command=self.create_profile).pack(side="left", padx=(10, 0))
+        ttk.Button(profile_row, text="Rename", command=self.rename_profile).pack(side="left", padx=(8, 0))
+        ttk.Button(profile_row, text="Icon", command=self.change_profile_icon).pack(side="left", padx=(8, 0))
+        ttk.Button(profile_row, text="Delete", style="Danger.TButton", command=self.delete_profile).pack(side="left", padx=(8, 0))
 
         input_row = ttk.Frame(content, style="Toolbar.TFrame")
-        input_row.pack(fill="x", pady=(0, 14))
+        input_row.pack(fill="x", pady=(0, 12))
         self.entry = ttk.Entry(input_row, textvariable=self.entry_var)
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", lambda _event: self.add_item())
-        ttk.Button(input_row, text="Добавить", style="Primary.TButton", command=self.add_item).pack(side="left", padx=(10, 0))
-        ttk.Button(input_row, text="Файл", command=self.pick_file).pack(side="left", padx=(8, 0))
-        ttk.Button(input_row, text="Папка", command=self.pick_folder).pack(side="left", padx=(8, 0))
-        ttk.Button(input_row, text="Ссылка", command=self.add_link_from_dialog).pack(side="left", padx=(8, 0))
+        ttk.Button(input_row, text="Add", style="Primary.TButton", command=self.add_item).pack(side="left", padx=(10, 0))
+        ttk.Button(input_row, text="File", command=self.pick_file).pack(side="left", padx=(8, 0))
+        ttk.Button(input_row, text="Folder", command=self.pick_folder).pack(side="left", padx=(8, 0))
+        ttk.Button(input_row, text="Link", command=self.add_link_from_dialog).pack(side="left", padx=(8, 0))
 
         list_frame = ttk.Frame(content, style="Panel.TFrame")
         list_frame.pack(fill="both", expand=True)
-        self.listbox = Listbox(
-            list_frame,
-            selectmode=SINGLE,
-            activestyle="none",
-            bg=ENTRY,
-            fg=TEXT,
-            selectbackground=ACCENT_DARK,
-            selectforeground="#ffffff",
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            highlightcolor=ACCENT,
-            relief="flat",
-            borderwidth=0,
-            font=("Segoe UI", 11),
-            height=12,
-        )
+        self.listbox = Listbox(list_frame, selectmode=SINGLE, activestyle="none", bg=ENTRY, fg=TEXT, selectbackground=ACCENT_DARK, selectforeground="#ffffff", highlightthickness=1, highlightbackground=BORDER, highlightcolor=ACCENT, relief="flat", borderwidth=0, font=("Segoe UI", 11), height=12)
         self.listbox.pack(side="left", fill="both", expand=True)
         self.listbox.bind("<<ListboxSelect>>", self.on_select)
         self.listbox.bind("<Double-Button-1>", lambda _event: self.launch_selected())
-
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview, style="Vertical.TScrollbar")
         scrollbar.pack(side="right", fill="y")
         self.listbox.configure(yscrollcommand=scrollbar.set)
 
         actions = ttk.Frame(content, style="Toolbar.TFrame")
         actions.pack(fill="x", pady=(14, 0))
-        ttk.Button(actions, text="Запустить профиль", style="Primary.TButton", command=self.launch_all).pack(side="left")
-        ttk.Button(actions, text="Запустить выбранное", command=self.launch_selected).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Изменить", command=self.update_selected).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Удалить", style="Danger.TButton", command=self.delete_selected).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Сохранить", command=self.save).pack(side="right")
+        ttk.Button(actions, text="Launch Profile", style="Primary.TButton", command=self.launch_all).pack(side="left")
+        ttk.Button(actions, text="Launch Selected", command=self.launch_selected).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text="Update", command=self.update_selected).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text="Remove", style="Danger.TButton", command=self.delete_selected).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text="Export", command=self.export_profile).pack(side="right")
+        ttk.Button(actions, text="Import", command=self.import_profile).pack(side="right", padx=(0, 8))
+        ttk.Button(actions, text="Save", command=self.save).pack(side="right", padx=(0, 8))
+
+        utility = ttk.Frame(content, style="Toolbar.TFrame")
+        utility.pack(fill="x", pady=(10, 0))
+        ttk.Button(utility, text="Startup: Off", command=self.toggle_startup).pack(side="left")
+        self.startup_button = utility.winfo_children()[0]
+        ttk.Button(utility, text="Check Updates", command=self.check_updates).pack(side="left", padx=(8, 0))
+        ttk.Button(utility, text="About", command=self.show_about).pack(side="left", padx=(8, 0))
+        ttk.Label(utility, text="Hotkeys: Ctrl+Enter launch, Ctrl+N new, Ctrl+I import, Ctrl+E export, Del remove", style="Status.TLabel").pack(side="right")
 
         ttk.Label(content, textvariable=self.status_var, style="Status.TLabel").pack(anchor="w", pady=(12, 0))
+        self.refresh_startup_button()
+
+    def bind_hotkeys(self):
+        self.root.bind("<Control-Return>", lambda _event: self.launch_all())
+        self.root.bind("<Control-n>", lambda _event: self.create_profile())
+        self.root.bind("<Control-i>", lambda _event: self.import_profile())
+        self.root.bind("<Control-e>", lambda _event: self.export_profile())
+        self.root.bind("<Delete>", lambda _event: self.delete_selected())
+        self.root.bind("<F5>", lambda _event: self.save(show_message=False))
+
+    def display_profile(self, name):
+        icon = self.profile_meta.get(name, {}).get("icon", "Rocket")
+        return f"{PROFILE_MARKS.get(icon, '[>]')} {name}"
+
+    def display_profiles(self):
+        return [self.display_profile(name) for name in self.profiles]
+
+    def profile_from_display(self, value):
+        for name in self.profiles:
+            if value.endswith(name):
+                return name
+        return self.active_profile
 
     def reload_profiles(self):
         self.profiles = list_profiles()
-        self.profile_box.configure(values=self.profiles)
+        self.profile_box.configure(values=self.display_profiles())
 
     def load_profile(self, profile_name, save_current=True):
         if save_current and hasattr(self, "items"):
             write_list(profile_path(self.active_profile), self.items)
         self.active_profile = profile_name
-        self.profile_var.set(profile_name)
+        self.profile_var.set(self.display_profile(profile_name))
         self.items = read_list(self.current_profile_path)
         self.entry_var.set("")
         self.refresh_list()
         self.sync_legacy_config()
-        self.status_var.set(f"Профиль: {profile_name}. В списке: {len(self.items)}")
 
     def on_profile_selected(self, _event=None):
-        self.load_profile(self.profile_var.get())
+        self.load_profile(self.profile_from_display(self.profile_var.get()))
+
+    def run_first_launch_wizard(self):
+        if self.settings.get("first_run_done"):
+            return
+        messagebox.showinfo("Welcome", "Create profiles for work, study, personal tasks, then launch everything with one button.")
+        name = simpledialog.askstring("First profile", "Profile name:", initialvalue=DEFAULT_PROFILE, parent=self.root)
+        if name:
+            clean = profile_file_name(name)
+            if clean != self.active_profile and not profile_path(clean).exists():
+                profile_path(self.active_profile).rename(profile_path(clean))
+                self.reload_profiles()
+                self.load_profile(clean, save_current=False)
+        self.settings["first_run_done"] = True
+        save_json(SETTINGS_PATH, self.settings)
+
+    def maybe_auto_launch(self):
+        profile = self.settings.get("startup_launch_profile")
+        if self.settings.get("auto_launch_on_start") and profile in self.profiles:
+            self.load_profile(profile)
+            self.root.after(800, self.launch_all)
 
     def create_profile(self):
-        name = simpledialog.askstring("Новый профиль", "Название профиля:", parent=self.root)
+        name = simpledialog.askstring("New profile", "Profile name:", parent=self.root)
         if not name:
             return
         clean = profile_file_name(name)
-        path = PROFILES_DIR / f"{clean}.txt"
+        path = profile_path(clean)
         if path.exists():
-            messagebox.showwarning("Уже есть", "Профиль с таким названием уже существует.")
+            messagebox.showwarning("Already exists", "A profile with this name already exists.")
             return
         write_list(path, [])
+        self.profile_meta.setdefault(clean, {"icon": "Rocket"})
+        save_json(PROFILE_META_PATH, self.profile_meta)
         self.reload_profiles()
         self.load_profile(clean)
 
     def rename_profile(self):
         old_name = self.active_profile
-        new_name = simpledialog.askstring("Переименовать профиль", "Новое название:", initialvalue=old_name, parent=self.root)
+        new_name = simpledialog.askstring("Rename profile", "New name:", initialvalue=old_name, parent=self.root)
         if not new_name:
             return
-        old_path = profile_path(old_name)
         clean = profile_file_name(new_name)
-        new_path = PROFILES_DIR / f"{clean}.txt"
+        old_path = profile_path(old_name)
+        new_path = profile_path(clean)
         if new_path.exists() and new_path != old_path:
-            messagebox.showwarning("Уже есть", "Профиль с таким названием уже существует.")
+            messagebox.showwarning("Already exists", "A profile with this name already exists.")
             return
         self.save(show_message=False)
         old_path.rename(new_path)
+        if old_name in self.profile_meta:
+            self.profile_meta[clean] = self.profile_meta.pop(old_name)
+            save_json(PROFILE_META_PATH, self.profile_meta)
         self.reload_profiles()
         self.load_profile(clean, save_current=False)
 
+    def change_profile_icon(self):
+        choice = simpledialog.askstring("Profile icon", "Choose: " + ", ".join(PROFILE_ICONS), initialvalue=self.profile_meta.get(self.active_profile, {}).get("icon", "Rocket"), parent=self.root)
+        if not choice:
+            return
+        choice = choice.strip().title()
+        if choice not in PROFILE_ICONS:
+            messagebox.showwarning("Unknown icon", "Use one of: " + ", ".join(PROFILE_ICONS))
+            return
+        self.profile_meta.setdefault(self.active_profile, {})["icon"] = choice
+        save_json(PROFILE_META_PATH, self.profile_meta)
+        self.reload_profiles()
+        self.profile_var.set(self.display_profile(self.active_profile))
+
     def delete_profile(self):
         if len(self.profiles) <= 1:
-            messagebox.showwarning("Нельзя удалить", "Должен остаться хотя бы один профиль.")
+            messagebox.showwarning("Cannot delete", "At least one profile must remain.")
             return
-        name = self.active_profile
-        if not messagebox.askyesno("Удалить профиль", f"Удалить профиль '{name}'?"):
+        if not messagebox.askyesno("Delete profile", f"Delete profile '{self.active_profile}'?"):
             return
         self.current_profile_path.unlink(missing_ok=True)
+        self.profile_meta.pop(self.active_profile, None)
+        save_json(PROFILE_META_PATH, self.profile_meta)
         self.reload_profiles()
         self.load_profile(self.profiles[0], save_current=False)
 
@@ -290,7 +413,7 @@ class StartWorkApp:
         self.listbox.delete(0, END)
         for item in self.items:
             self.listbox.insert(END, item)
-        self.status_var.set(f"Профиль: {self.active_profile}. В списке: {len(self.items)}")
+        self.status_var.set(f"Profile: {self.active_profile}. Items: {len(self.items)}")
 
     def sync_legacy_config(self):
         write_list(CONFIG_PATH, self.items)
@@ -307,17 +430,17 @@ class StartWorkApp:
     def add_item(self):
         value = normalize_item(self.entry_var.get())
         if not value:
-            messagebox.showwarning("Пустая строка", "Введите приложение, путь или ссылку.")
+            messagebox.showwarning("Empty item", "Enter an app, path, file, folder, or link.")
             return
         self.items.append(value)
         self.entry_var.set("")
         self.save(show_message=False)
         self.refresh_list()
-        self.status_var.set(f"Добавлено: {value}")
+        self.status_var.set(f"Added: {value}")
 
     def add_link_from_dialog(self):
-        value = simpledialog.askstring("Добавить ссылку", "Вставьте ссылку:", parent=self.root)
-        value = normalize_item(value or "")
+        value = simpledialog.askstring("Add link", "Paste link:", parent=self.root)
+        value = normalize_item(value)
         if not value:
             return
         if not value.lower().startswith(("http://", "https://", "mailto:")):
@@ -328,11 +451,11 @@ class StartWorkApp:
     def update_selected(self):
         index = self.selected_index()
         if index is None:
-            messagebox.showinfo("Ничего не выбрано", "Выберите строку, которую нужно изменить.")
+            messagebox.showinfo("Nothing selected", "Choose an item to update.")
             return
-        value = self.entry_var.get().strip()
+        value = normalize_item(self.entry_var.get())
         if not value:
-            messagebox.showwarning("Пустая строка", "Введите новое значение.")
+            messagebox.showwarning("Empty item", "Enter a new value.")
             return
         self.items[index] = value
         self.save(show_message=False)
@@ -342,59 +465,119 @@ class StartWorkApp:
     def delete_selected(self):
         index = self.selected_index()
         if index is None:
-            messagebox.showinfo("Ничего не выбрано", "Выберите строку для удаления.")
             return
         removed = self.items.pop(index)
         self.entry_var.set("")
         self.save(show_message=False)
         self.refresh_list()
-        self.status_var.set(f"Удалено: {removed}")
+        self.status_var.set(f"Removed: {removed}")
 
     def pick_file(self):
-        path = filedialog.askopenfilename(title="Выберите приложение или файл")
+        path = filedialog.askopenfilename(title="Choose app or file")
         if path:
             self.entry_var.set(path)
 
     def pick_folder(self):
-        path = filedialog.askdirectory(title="Выберите папку")
+        path = filedialog.askdirectory(title="Choose folder")
         if path:
             self.entry_var.set(path)
 
     def save(self, show_message=True):
         write_list(self.current_profile_path, self.items)
         self.sync_legacy_config()
-        self.status_var.set("Профиль сохранён")
+        self.status_var.set("Profile saved")
         if show_message:
-            messagebox.showinfo("Сохранено", f"Профиль сохранён: {self.active_profile}")
+            messagebox.showinfo("Saved", f"Profile saved: {self.active_profile}")
+
+    def import_profile(self):
+        path = filedialog.askopenfilename(title="Import profile", filetypes=[("Profile files", "*.txt *.json"), ("All files", "*.*")])
+        if not path:
+            return
+        source = Path(path)
+        name = profile_file_name(source.stem)
+        target = profile_path(name)
+        counter = 2
+        while target.exists():
+            name = f"{profile_file_name(source.stem)} {counter}"
+            target = profile_path(name)
+            counter += 1
+        if source.suffix.lower() == ".json":
+            data = load_json(source, {})
+            items = data.get("items", []) if isinstance(data, dict) else []
+        else:
+            items = read_list(source)
+        write_list(target, items)
+        self.reload_profiles()
+        self.load_profile(name)
+
+    def export_profile(self):
+        path = filedialog.asksaveasfilename(title="Export profile", initialfile=f"{self.active_profile}.txt", defaultextension=".txt", filetypes=[("Text profile", "*.txt"), ("JSON profile", "*.json")])
+        if not path:
+            return
+        target = Path(path)
+        if target.suffix.lower() == ".json":
+            save_json(target, {"name": self.active_profile, "version": APP_VERSION, "items": self.items})
+        else:
+            write_list(target, self.items)
+        self.status_var.set(f"Exported: {target.name}")
+
+    def refresh_startup_button(self):
+        enabled = is_startup_enabled()
+        self.startup_button.configure(text="Startup: On" if enabled else "Startup: Off")
+
+    def toggle_startup(self):
+        try:
+            next_state = not is_startup_enabled()
+            set_startup_enabled(next_state)
+            self.settings["auto_launch_on_start"] = next_state
+            self.settings["startup_launch_profile"] = self.active_profile if next_state else ""
+            save_json(SETTINGS_PATH, self.settings)
+            self.refresh_startup_button()
+            self.status_var.set("Windows startup enabled" if next_state else "Windows startup disabled")
+        except Exception as exc:
+            messagebox.showerror("Startup error", str(exc))
 
     def launch_selected(self):
         index = self.selected_index()
         if index is None:
-            messagebox.showinfo("Ничего не выбрано", "Выберите строку для запуска.")
+            messagebox.showinfo("Nothing selected", "Choose an item to launch.")
             return
         item = self.items[index]
         ok, error = launch_item(item)
-        self.status_var.set(f"Запущено: {item}" if ok else f"Ошибка запуска: {item}")
+        self.status_var.set(f"Launched: {item}" if ok else f"Launch error: {item}")
         if not ok:
-            messagebox.showerror("Ошибка запуска", error or item)
+            messagebox.showerror("Launch error", error or item)
 
     def launch_all(self):
         if not self.items:
-            messagebox.showinfo("Профиль пуст", "Добавьте хотя бы одно приложение или ссылку.")
+            messagebox.showinfo("Empty profile", "Add at least one app, file, folder, or link.")
             return
-
         self.save(show_message=False)
         errors = []
         for item in self.items:
             ok, error = launch_item(item)
             if not ok:
                 errors.append(f"{item}: {error}")
-
         if errors:
-            messagebox.showerror("Часть элементов не запустилась", "\n".join(errors))
-            self.status_var.set(f"Запущено с ошибками: {len(errors)}")
+            messagebox.showerror("Some items failed", "\n".join(errors))
+            self.status_var.set(f"Launched with errors: {len(errors)}")
         else:
-            self.status_var.set(f"Запущен профиль '{self.active_profile}': {len(self.items)}")
+            self.status_var.set(f"Launched profile '{self.active_profile}': {len(self.items)}")
+
+    def check_updates(self):
+        try:
+            with urllib.request.urlopen(RAW_VERSION_URL, timeout=5) as response:
+                latest = response.read().decode("utf-8").strip()
+            if latest and latest != APP_VERSION:
+                if messagebox.askyesno("Update available", f"Current: {APP_VERSION}\nLatest: {latest}\nOpen GitHub?"):
+                    webbrowser.open(GITHUB_URL)
+            else:
+                messagebox.showinfo("Updates", f"You are using the latest version: {APP_VERSION}")
+        except Exception as exc:
+            messagebox.showerror("Update check failed", str(exc))
+
+    def show_about(self):
+        messagebox.showinfo("About", f"{APP_NAME}\nVersion {APP_VERSION}\n\nA one-click launcher for Windows work profiles.\n\n{GITHUB_URL}")
 
 
 def main():
@@ -405,4 +588,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

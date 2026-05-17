@@ -1,3 +1,0 @@
-﻿# StartWorkLauncher apps list
-# One app, folder, file, or URL per line.
-
