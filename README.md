@@ -1,6 +1,6 @@
 # StartWork Launcher
 
-Version: `2.1.0`
+Version: `2.0.0`
 
 StartWork Launcher is a small Windows app for launching a saved set of work apps, folders, files, and websites.
 
@@ -21,8 +21,6 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 - Language selector with English, Russian, Chinese, Spanish, German, French, Japanese, and Korean.
 - App list now shows friendly names instead of raw paths.
 - Right-click app menu: launch, open file location, rename display name, copy target.
-- PostgreSQL-backed sign in and registration window.
-- PBKDF2 password hashing with per-user salt.
 - Built-in update checker.
 - PowerShell fallback launcher for `apps.txt`.
 
@@ -31,18 +29,7 @@ StartWork Launcher is a small Windows app for launching a saved set of work apps
 For regular users, download the ready archive:
 
 ```text
-release/StartWorkLauncher-2.1.0.zip
-
-## PostgreSQL auth
-
-Set a connection string before launching:
-
-```bat
-set STARTWORK_PG_DSN=host=localhost port=5432 dbname=startwork user=postgres password=postgres
-StartWorkLauncher.exe
-```
-
-The app creates the `app_users` table automatically. The SQL schema is also available in `db/schema.sql`.
+release/StartWorkLauncher-2.0.0.zip
 ```
 
 Unzip it and run:

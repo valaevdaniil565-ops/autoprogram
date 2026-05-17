@@ -1,15 +1,12 @@
-import hashlib
 import json
 import os
 import re
-import secrets
 import shutil
 import subprocess
 import sys
 import urllib.request
 import webbrowser
 from pathlib import Path
-from datetime import datetime, timezone
 from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog, Toplevel, PhotoImage, Menu
 from tkinter import Listbox
 from tkinter import ttk
@@ -18,13 +15,6 @@ try:
     import winreg
 except ImportError:
     winreg = None
-
-try:
-    import psycopg
-    from psycopg.rows import dict_row
-except Exception:
-    psycopg = None
-    dict_row = None
 
 APP_NAME = "StartWork Launcher"
 GITHUB_URL = "https://github.com/valaevdaniil565-ops/autoprogram"
@@ -339,107 +329,6 @@ def detect_app_library():
     return found
 
 
-
-
-def get_pg_dsn():
-    dsn = os.environ.get("STARTWORK_PG_DSN", "").strip()
-    if dsn:
-        return dsn
-    host = os.environ.get("PGHOST", "localhost")
-    port = os.environ.get("PGPORT", "5432")
-    dbname = os.environ.get("PGDATABASE", "startwork")
-    user = os.environ.get("PGUSER", "postgres")
-    password = os.environ.get("PGPASSWORD", "")
-    if password:
-        return f"host={host} port={port} dbname={dbname} user={user} password={password}"
-    return f"host={host} port={port} dbname={dbname} user={user}"
-
-
-def hash_password(password, salt=None):
-    salt = salt or secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 240000)
-    return salt, digest.hex()
-
-
-def verify_password(password, salt, expected_hash):
-    _salt, digest = hash_password(password, salt)
-    return secrets.compare_digest(digest, expected_hash)
-
-
-def ensure_auth_schema(conn):
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS app_users (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            username TEXT NOT NULL UNIQUE,
-            email TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            password_salt TEXT NOT NULL,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-            last_login_at TIMESTAMPTZ
-        );
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_app_users_username_lower ON app_users (lower(username));")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_app_users_email_lower ON app_users (lower(email));")
-    conn.commit()
-
-
-def get_db_connection():
-    if psycopg is None:
-        raise RuntimeError("PostgreSQL driver is not installed. Install requirements.txt or use the bundled exe build.")
-    conn = psycopg.connect(get_pg_dsn(), row_factory=dict_row)
-    ensure_auth_schema(conn)
-    return conn
-
-
-def register_user(username, email, password):
-    username = (username or "").strip()
-    email = (email or "").strip().lower()
-    if len(username) < 3:
-        raise ValueError("Username must contain at least 3 characters.")
-    if "@" not in email or "." not in email:
-        raise ValueError("Enter a valid email address.")
-    if len(password or "") < 8:
-        raise ValueError("Password must contain at least 8 characters.")
-    salt, password_hash = hash_password(password)
-    with get_db_connection() as conn:
-        try:
-            row = conn.execute(
-                """
-                INSERT INTO app_users (username, email, password_hash, password_salt)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id, username, email, created_at;
-                """,
-                (username, email, password_hash, salt),
-            ).fetchone()
-            conn.commit()
-            return row
-        except Exception as exc:
-            conn.rollback()
-            message = str(exc)
-            if "unique" in message.lower() or "duplicate" in message.lower():
-                raise ValueError("A user with this username or email already exists.")
-            raise
-
-
-def login_user(login, password):
-    login = (login or "").strip().lower()
-    with get_db_connection() as conn:
-        row = conn.execute(
-            """
-            SELECT id, username, email, password_hash, password_salt, created_at
-            FROM app_users
-            WHERE lower(username) = %s OR lower(email) = %s
-            LIMIT 1;
-            """,
-            (login, login),
-        ).fetchone()
-        if not row or not verify_password(password or "", row["password_salt"], row["password_hash"]):
-            raise ValueError("Invalid username/email or password.")
-        conn.execute("UPDATE app_users SET last_login_at = now() WHERE id = %s", (row["id"],))
-        conn.commit()
-        return {"id": str(row["id"]), "username": row["username"], "email": row["email"]}
-
-
 def command_for_startup():
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}"'
@@ -496,10 +385,10 @@ class StartWorkApp:
         self.status_var = StringVar(value=self.t("Ready"))
         self.items = []
         self.images = {}
-        self.current_user = None
 
         self.setup_style()
-        self.show_auth_screen()
+        self.show_profile_selector()
+        self.maybe_auto_launch()
 
     @property
     def current_profile_path(self):
@@ -538,87 +427,6 @@ class StartWorkApp:
         box.pack(side="left")
         box.bind("<<ComboboxSelected>>", self.set_language)
         return box
-
-
-    def show_auth_screen(self):
-        self.clear_root()
-        self.images.clear()
-        outer = ttk.Frame(self.root, padding=34)
-        outer.pack(fill="both", expand=True)
-
-        header = ttk.Frame(outer)
-        header.pack(fill="x", pady=(0, 26))
-        logo = self.get_avatar_image("__logo__", 64)
-        if logo:
-            ttk.Label(header, image=logo, background=BG).pack(side="left", padx=(0, 14))
-        title = ttk.Frame(header)
-        title.pack(side="left")
-        ttk.Label(title, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
-        ttk.Label(title, text="Secure account sign-in with PostgreSQL", style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
-        self.add_language_selector(header)
-
-        card = ttk.Frame(outer, style="Panel.TFrame", padding=24)
-        card.pack(anchor="center", fill="x", expand=False)
-        ttk.Label(card, text="Account", style="Title.TLabel").pack(anchor="w", pady=(0, 4))
-        ttk.Label(card, text="Sign in or create a StartWork account.", style="Panel.TLabel").pack(anchor="w", pady=(0, 18))
-
-        self.auth_login_var = StringVar()
-        self.auth_email_var = StringVar()
-        self.auth_password_var = StringVar()
-        self.auth_confirm_var = StringVar()
-        self.auth_status_var = StringVar(value="PostgreSQL: STARTWORK_PG_DSN or PGHOST/PGUSER/PGPASSWORD")
-
-        form = ttk.Frame(card, style="Panel.TFrame")
-        form.pack(fill="x")
-        ttk.Label(form, text="Username or email", style="Panel.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 5))
-        login_entry = ttk.Entry(form, textvariable=self.auth_login_var)
-        login_entry.grid(row=1, column=0, sticky="ew", pady=(0, 12))
-        ttk.Label(form, text="Email (for registration)", style="Panel.TLabel").grid(row=2, column=0, sticky="w", pady=(0, 5))
-        ttk.Entry(form, textvariable=self.auth_email_var).grid(row=3, column=0, sticky="ew", pady=(0, 12))
-        ttk.Label(form, text="Password", style="Panel.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 5))
-        ttk.Entry(form, textvariable=self.auth_password_var, show="*").grid(row=5, column=0, sticky="ew", pady=(0, 12))
-        ttk.Label(form, text="Confirm password (for registration)", style="Panel.TLabel").grid(row=6, column=0, sticky="w", pady=(0, 5))
-        ttk.Entry(form, textvariable=self.auth_confirm_var, show="*").grid(row=7, column=0, sticky="ew", pady=(0, 16))
-        form.columnconfigure(0, weight=1)
-
-        actions = ttk.Frame(card, style="Panel.TFrame")
-        actions.pack(fill="x")
-        ttk.Button(actions, text="Sign In", style="Primary.TButton", command=self.handle_login).pack(side="left")
-        ttk.Button(actions, text="Register", command=self.handle_register).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Continue Offline", command=self.continue_offline).pack(side="right")
-        ttk.Label(card, textvariable=self.auth_status_var, style="Status.TLabel").pack(anchor="w", pady=(14, 0))
-        login_entry.focus_set()
-
-    def auth_success(self, user):
-        self.current_user = user
-        self.settings["last_user"] = user.get("username", "")
-        save_json(SETTINGS_PATH, self.settings)
-        self.show_profile_selector()
-        self.maybe_auto_launch()
-
-    def handle_login(self):
-        try:
-            user = login_user(self.auth_login_var.get(), self.auth_password_var.get())
-            self.auth_success(user)
-        except Exception as exc:
-            self.auth_status_var.set(str(exc))
-
-    def handle_register(self):
-        password = self.auth_password_var.get()
-        if password != self.auth_confirm_var.get():
-            self.auth_status_var.set("Passwords do not match.")
-            return
-        username = self.auth_login_var.get()
-        try:
-            user = register_user(username, self.auth_email_var.get(), password)
-            self.auth_success({"id": str(user["id"]), "username": user["username"], "email": user["email"]})
-        except Exception as exc:
-            self.auth_status_var.set(str(exc))
-
-    def continue_offline(self):
-        self.current_user = {"id": "offline", "username": "Offline", "email": ""}
-        self.show_profile_selector()
-        self.maybe_auto_launch()
 
     def setup_style(self):
         style = ttk.Style()
@@ -1192,7 +1000,7 @@ class StartWorkApp:
             messagebox.showerror("Update check failed", str(exc))
 
     def show_about(self):
-        messagebox.showinfo("About", f"{APP_NAME}\nVersion {APP_VERSION}\n\nPostgreSQL auth + one-click launcher for Windows work profiles.\n\n{GITHUB_URL}")
+        messagebox.showinfo("About", f"{APP_NAME}\nVersion {APP_VERSION}\n\nA one-click launcher for Windows work profiles.\n\n{GITHUB_URL}")
 
 
 def main():
