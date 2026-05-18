@@ -892,7 +892,7 @@ class StartWorkApp:
             return "break"
 
         def submit():
-            value = normalize_item(value_var.get())
+            value = normalize_item(entry.get())
             if not value:
                 messagebox.showwarning("Empty item", "Enter a link.")
                 return
@@ -907,12 +907,13 @@ class StartWorkApp:
 
         actions = ttk.Frame(frame, style="Panel.TFrame")
         actions.pack(fill="x", pady=(14, 0))
-        ttk.Button(actions, text="Add", style="Primary.TButton", command=submit).pack(side="right")
-        ttk.Button(actions, text="Cancel", command=win.destroy).pack(side="right", padx=(0, 8))
+        Button(actions, text="Add", command=submit, width=14, bg=ACCENT_DARK, fg="white", activebackground=ACCENT, activeforeground="white", relief="flat").pack(side="right")
+        Button(actions, text="Cancel", command=win.destroy, width=12, bg=PANEL_LIGHT, fg=TEXT, activebackground="#263653", activeforeground=TEXT, relief="flat").pack(side="right", padx=(0, 8))
         entry.bind("<Return>", lambda _event: submit())
         entry.bind("<Control-v>", paste_clipboard)
         entry.bind("<Control-V>", paste_clipboard)
         entry.bind("<Shift-Insert>", paste_clipboard)
+        win.bind("<Return>", lambda _event: submit())
         win.bind("<Control-v>", paste_clipboard)
         win.bind("<Control-V>", paste_clipboard)
         win.after(100, lambda: entry.focus_force())
