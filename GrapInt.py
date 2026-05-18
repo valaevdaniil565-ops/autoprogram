@@ -862,17 +862,55 @@ class StartWorkApp:
         ttk.Button(frame, text=self.t("Add Selected"), style="Primary.TButton", command=add_selected).pack(anchor="e", pady=(12, 0))
 
     def add_link_from_dialog(self):
-        value = simpledialog.askstring("Add link", "Paste link:", parent=self.root)
-        value = normalize_item(value)
-        if not value:
-            return
-        if not value.lower().startswith(("http://", "https://", "mailto:")):
-            value = "https://" + value
-        self.items.append(make_item(value))
-        self.entry_var.set("")
-        self.save(show_message=False)
-        self.refresh_list()
-        self.status_var.set(f"Added: {item_name_from_target(value)}")
+        win = Toplevel(self.root)
+        win.title("Add link")
+        win.geometry("620x230")
+        win.configure(bg=BG)
+        win.transient(self.root)
+        win.grab_set()
+
+        value_var = StringVar()
+        try:
+            clip = normalize_item(self.root.clipboard_get())
+            if clip.startswith(("http://", "https://", "mailto:")) or clip.lower().startswith("www."):
+                value_var.set(clip)
+        except Exception:
+            pass
+
+        frame = ttk.Frame(win, style="Panel.TFrame", padding=18)
+        frame.pack(fill="both", expand=True, padx=18, pady=18)
+        ttk.Label(frame, text="Add link", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(frame, text="Paste a website, mailto link, or domain. Use the paste button if Ctrl+V does not work.", style="Panel.TLabel").pack(anchor="w", pady=(4, 12))
+        entry = ttk.Entry(frame, textvariable=value_var)
+        entry.pack(fill="x")
+
+        def paste_clipboard():
+            try:
+                value_var.set(self.root.clipboard_get())
+            except Exception:
+                value_var.set("")
+
+        def submit():
+            value = normalize_item(value_var.get())
+            if not value:
+                messagebox.showwarning("Empty item", "Enter a link.")
+                return
+            if not value.lower().startswith(("http://", "https://", "mailto:")):
+                value = "https://" + value
+            self.items.append(make_item(value))
+            self.entry_var.set("")
+            self.save(show_message=False)
+            self.refresh_list()
+            self.status_var.set(f"Added: {item_name_from_target(value)}")
+            win.destroy()
+
+        actions = ttk.Frame(frame, style="Panel.TFrame")
+        actions.pack(fill="x", pady=(14, 0))
+        ttk.Button(actions, text="Paste from clipboard", command=paste_clipboard).pack(side="left")
+        ttk.Button(actions, text="Add link", style="Primary.TButton", command=submit).pack(side="right")
+        ttk.Button(actions, text="Cancel", command=win.destroy).pack(side="right", padx=(0, 8))
+        entry.bind("<Return>", lambda _event: submit())
+        entry.focus_set()
 
     def update_selected(self):
         index = self.selected_index()
