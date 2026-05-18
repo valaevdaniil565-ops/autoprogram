@@ -7,7 +7,7 @@ import sys
 import urllib.request
 import webbrowser
 from pathlib import Path
-from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog, Toplevel, PhotoImage, Menu
+from tkinter import Tk, StringVar, END, SINGLE, filedialog, messagebox, simpledialog, Toplevel, PhotoImage, Menu, Button
 from tkinter import Listbox
 from tkinter import ttk
 
@@ -864,7 +864,7 @@ class StartWorkApp:
     def add_link_from_dialog(self):
         win = Toplevel(self.root)
         win.title("Add link")
-        win.geometry("620x230")
+        win.geometry("720x260")
         win.configure(bg=BG)
         win.transient(self.root)
         win.grab_set()
@@ -906,9 +906,9 @@ class StartWorkApp:
 
         actions = ttk.Frame(frame, style="Panel.TFrame")
         actions.pack(fill="x", pady=(14, 0))
-        ttk.Button(actions, text="Paste from clipboard", command=paste_clipboard).pack(side="left")
-        ttk.Button(actions, text="Add link", style="Primary.TButton", command=submit).pack(side="right")
-        ttk.Button(actions, text="Cancel", command=win.destroy).pack(side="right", padx=(0, 8))
+        Button(actions, text="Paste", command=paste_clipboard, width=16, bg=PANEL_LIGHT, fg=TEXT, activebackground="#263653", activeforeground=TEXT, relief="flat").pack(side="left")
+        Button(actions, text="Add", command=submit, width=14, bg=ACCENT_DARK, fg="white", activebackground=ACCENT, activeforeground="white", relief="flat").pack(side="right")
+        Button(actions, text="Cancel", command=win.destroy, width=12, bg=PANEL_LIGHT, fg=TEXT, activebackground="#263653", activeforeground=TEXT, relief="flat").pack(side="right", padx=(0, 8))
         entry.bind("<Return>", lambda _event: submit())
         entry.focus_set()
 
