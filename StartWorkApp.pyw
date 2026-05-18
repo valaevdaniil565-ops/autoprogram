@@ -271,7 +271,10 @@ def list_profiles():
 def launch_item(item):
     try:
         if item.startswith(("http://", "https://", "mailto:")):
-            webbrowser.open(item)
+            try:
+                os.startfile(item)
+            except Exception:
+                webbrowser.open(item)
             return True, None
         if os.path.exists(item):
             os.startfile(item)
@@ -566,6 +569,7 @@ class StartWorkApp:
         self.entry.bind("<Control-v>", self.paste_into_entry)
         self.entry.bind("<Control-V>", self.paste_into_entry)
         self.entry.bind("<Shift-Insert>", self.paste_into_entry)
+        self.entry.bind("<<Paste>>", self.paste_into_entry)
         self.entry.bind("<Button-3>", self.show_entry_menu)
         ttk.Button(input_row, text=self.t("Add"), style="Primary.TButton", command=self.add_item).pack(side="left", padx=(10, 0))
         ttk.Button(input_row, text=self.t("Library"), command=self.open_app_library).pack(side="left", padx=(8, 0))
@@ -864,8 +868,11 @@ class StartWorkApp:
             return
         if not value.lower().startswith(("http://", "https://", "mailto:")):
             value = "https://" + value
-        self.entry_var.set(value)
-        self.add_item()
+        self.items.append(make_item(value))
+        self.entry_var.set("")
+        self.save(show_message=False)
+        self.refresh_list()
+        self.status_var.set(f"Added: {item_name_from_target(value)}")
 
     def update_selected(self):
         index = self.selected_index()
