@@ -880,15 +880,16 @@ class StartWorkApp:
         frame = ttk.Frame(win, style="Panel.TFrame", padding=18)
         frame.pack(fill="both", expand=True, padx=18, pady=18)
         ttk.Label(frame, text="Add link", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(frame, text="Paste a website, mailto link, or domain. Use the paste button if Ctrl+V does not work.", style="Panel.TLabel").pack(anchor="w", pady=(4, 12))
+        ttk.Label(frame, text="Paste a website, mailto link, or domain with Ctrl+V.", style="Panel.TLabel").pack(anchor="w", pady=(4, 12))
         entry = ttk.Entry(frame, textvariable=value_var)
         entry.pack(fill="x")
 
-        def paste_clipboard():
+        def paste_clipboard(_event=None):
             try:
-                value_var.set(self.root.clipboard_get())
+                entry.insert("insert", self.root.clipboard_get())
             except Exception:
-                value_var.set("")
+                pass
+            return "break"
 
         def submit():
             value = normalize_item(value_var.get())
@@ -906,11 +907,15 @@ class StartWorkApp:
 
         actions = ttk.Frame(frame, style="Panel.TFrame")
         actions.pack(fill="x", pady=(14, 0))
-        Button(actions, text="Paste", command=paste_clipboard, width=16, bg=PANEL_LIGHT, fg=TEXT, activebackground="#263653", activeforeground=TEXT, relief="flat").pack(side="left")
-        Button(actions, text="Add", command=submit, width=14, bg=ACCENT_DARK, fg="white", activebackground=ACCENT, activeforeground="white", relief="flat").pack(side="right")
-        Button(actions, text="Cancel", command=win.destroy, width=12, bg=PANEL_LIGHT, fg=TEXT, activebackground="#263653", activeforeground=TEXT, relief="flat").pack(side="right", padx=(0, 8))
+        ttk.Button(actions, text="Add", style="Primary.TButton", command=submit).pack(side="right")
+        ttk.Button(actions, text="Cancel", command=win.destroy).pack(side="right", padx=(0, 8))
         entry.bind("<Return>", lambda _event: submit())
-        entry.focus_set()
+        entry.bind("<Control-v>", paste_clipboard)
+        entry.bind("<Control-V>", paste_clipboard)
+        entry.bind("<Shift-Insert>", paste_clipboard)
+        win.bind("<Control-v>", paste_clipboard)
+        win.bind("<Control-V>", paste_clipboard)
+        win.after(100, lambda: entry.focus_force())
 
     def update_selected(self):
         index = self.selected_index()
