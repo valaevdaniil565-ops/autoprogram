@@ -12,6 +12,11 @@ from tkinter import Listbox
 from tkinter import ttk
 
 try:
+    import ctypes
+except ImportError:
+    ctypes = None
+
+try:
     import winreg
 except ImportError:
     winreg = None
@@ -25,10 +30,11 @@ if getattr(sys, "frozen", False):
 else:
     APP_DIR = Path(__file__).resolve().parent
 
-CONFIG_PATH = APP_DIR / "apps.txt"
-PROFILES_DIR = APP_DIR / "profiles"
-SETTINGS_PATH = APP_DIR / "settings.json"
-PROFILE_META_PATH = APP_DIR / "profile_meta.json"
+DATA_DIR = Path(os.environ.get("APPDATA") or APP_DIR) / "StartWorkLauncher"
+CONFIG_PATH = DATA_DIR / "apps.txt"
+PROFILES_DIR = DATA_DIR / "profiles"
+SETTINGS_PATH = DATA_DIR / "settings.json"
+PROFILE_META_PATH = DATA_DIR / "profile_meta.json"
 ICON_PATH = APP_DIR / "StartWork.ico"
 LOGO_PATH = APP_DIR / "StartWork-icon.png"
 VERSION_PATH = APP_DIR / "VERSION"
@@ -166,7 +172,20 @@ def load_json(path, default):
 
 
 def save_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def migrate_user_data():
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for name in ("apps.txt", "settings.json", "profile_meta.json"):
+        source = APP_DIR / name
+        target = DATA_DIR / name
+        if source.exists() and not target.exists():
+            shutil.copy2(source, target)
+    source_profiles = APP_DIR / "profiles"
+    if source_profiles.exists() and not PROFILES_DIR.exists():
+        shutil.copytree(source_profiles, PROFILES_DIR)
 
 
 def profile_file_name(name):
@@ -184,6 +203,45 @@ def normalize_item(value):
     if value.lower().startswith("www."):
         return "https://" + value
     return value
+
+
+def has_uri_scheme(value):
+    return bool(re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", value or ""))
+
+
+def is_paste_shortcut(event):
+    if ctypes is not None and sys.platform == "win32":
+        try:
+            ctrl_down = ctypes.windll.user32.GetKeyState(0x11) & 0x8000
+            v_down = ctypes.windll.user32.GetKeyState(0x56) & 0x8000
+            if ctrl_down and v_down:
+                return True
+        except Exception:
+            pass
+    ctrl_pressed = bool(getattr(event, "state", 0) & 0x4)
+    keycode = getattr(event, "keycode", None)
+    keysym = str(getattr(event, "keysym", "")).lower()
+    keysym_num = getattr(event, "keysym_num", None)
+    char = str(getattr(event, "char", ""))
+    char_lower = char.lower()
+    return ctrl_pressed and (
+        keycode in {22, 86, 1052, 1084}
+        or keysym in {"v", "cyrillic_em", "u+043c", "u+041c"}
+        or keysym_num in {22, 86, 118, 1052, 1084}
+        or char_lower in {"v", "м"}
+        or (len(char) == 1 and ord(char) == 22)
+    )
+
+
+def paste_text_into_widget(widget, text):
+    if widget is None or not hasattr(widget, "insert"):
+        return False
+    try:
+        widget.delete("sel.first", "sel.last")
+    except Exception:
+        pass
+    widget.insert("insert", text)
+    return True
 
 
 def item_name_from_target(target):
@@ -237,7 +295,14 @@ def read_list(path):
         if value.startswith("п»ї"):
             value = value[3:].lstrip("\ufeff").strip()
         if value and not value.startswith("#"):
-            items.append(value)
+            try:
+                loaded = json.loads(value)
+                if isinstance(loaded, dict) and loaded.get("target"):
+                    items.append(make_item(loaded.get("target", ""), loaded.get("name")))
+                else:
+                    items.append(value)
+            except json.JSONDecodeError:
+                items.append(value)
     return items
 
 
@@ -247,12 +312,13 @@ def write_list(path, items):
         "# One app, folder, file, or URL per line.",
         "",
     ]
-    path.parent.mkdir(exist_ok=True)
-    path.write_text("\n".join(header + items) + "\n", encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [serialize_item(item) for item in items]
+    path.write_text("\n".join(header + lines) + "\n", encoding="utf-8")
 
 
 def ensure_profiles():
-    PROFILES_DIR.mkdir(exist_ok=True)
+    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     if not any(PROFILES_DIR.glob("*.txt")):
         write_list(PROFILES_DIR / f"{DEFAULT_PROFILE}.txt", [])
     if not CONFIG_PATH.exists():
@@ -376,6 +442,7 @@ class StartWorkApp:
             except Exception:
                 pass
 
+        migrate_user_data()
         ensure_profiles()
         self.settings = load_json(SETTINGS_PATH, {"first_run_done": False, "startup_launch_profile": "", "auto_launch_on_start": False})
         self.profile_meta = load_json(PROFILE_META_PATH, {})
@@ -566,12 +633,11 @@ class StartWorkApp:
         self.entry = ttk.Entry(input_row, textvariable=self.entry_var)
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", lambda _event: self.add_item())
-        self.entry.bind("<Control-v>", self.paste_into_entry)
-        self.entry.bind("<Control-V>", self.paste_into_entry)
+        self.entry.bind("<KeyPress>", self.handle_entry_keypress)
         self.entry.bind("<Shift-Insert>", self.paste_into_entry)
-        self.entry.bind("<<Paste>>", self.paste_into_entry)
         self.entry.bind("<Button-3>", self.show_entry_menu)
-        ttk.Button(input_row, text=self.t("Add"), style="Primary.TButton", command=self.add_item).pack(side="left", padx=(10, 0))
+        self.add_button = Button(input_row, text=self.t("Add"), command=self.add_item, width=12, bg=ACCENT_DARK, fg="white", activebackground=ACCENT, activeforeground="white", relief="flat", cursor="hand2")
+        self.add_button.pack(side="left", padx=(10, 0))
         ttk.Button(input_row, text=self.t("Library"), command=self.open_app_library).pack(side="left", padx=(8, 0))
         ttk.Button(input_row, text=self.t("File"), command=self.pick_file).pack(side="left", padx=(8, 0))
         ttk.Button(input_row, text=self.t("Folder"), command=self.pick_folder).pack(side="left", padx=(8, 0))
@@ -812,18 +878,31 @@ class StartWorkApp:
             messagebox.showwarning("Empty item", "Enter an app, path, file, folder, or link.")
             return
         self.items.append(make_item(value))
+        try:
+            self.save(show_message=False)
+        except Exception as exc:
+            self.items.pop()
+            messagebox.showerror("Save error", f"Could not save profile:\n{exc}")
+            return
         self.entry_var.set("")
-        self.save(show_message=False)
         self.refresh_list()
         self.status_var.set(f"Added: {item_name_from_target(value)}")
 
     def paste_into_entry(self, _event=None):
+        widget = getattr(_event, "widget", None) if _event is not None else None
+        if widget is None or not hasattr(widget, "insert"):
+            widget = self.entry
         try:
             text = self.root.clipboard_get()
         except Exception:
             return "break"
-        self.entry.insert("insert", text)
+        paste_text_into_widget(widget, text)
         return "break"
+
+    def handle_entry_keypress(self, event):
+        if is_paste_shortcut(event):
+            return self.paste_into_entry(event)
+        return None
 
     def show_entry_menu(self, event):
         menu = Menu(self.root, tearoff=0)
@@ -886,21 +965,31 @@ class StartWorkApp:
 
         def paste_clipboard(_event=None):
             try:
-                entry.insert("insert", self.root.clipboard_get())
+                paste_text_into_widget(entry, self.root.clipboard_get())
             except Exception:
                 pass
             return "break"
+
+        def handle_link_keypress(event):
+            if is_paste_shortcut(event):
+                return paste_clipboard(event)
+            return None
 
         def submit():
             value = normalize_item(entry.get())
             if not value:
                 messagebox.showwarning("Empty item", "Enter a link.")
                 return
-            if not value.lower().startswith(("http://", "https://", "mailto:")):
+            if not has_uri_scheme(value):
                 value = "https://" + value
             self.items.append(make_item(value))
+            try:
+                self.save(show_message=False)
+            except Exception as exc:
+                self.items.pop()
+                messagebox.showerror("Save error", f"Could not save profile:\n{exc}")
+                return
             self.entry_var.set("")
-            self.save(show_message=False)
             self.refresh_list()
             self.status_var.set(f"Added: {item_name_from_target(value)}")
             win.destroy()
@@ -910,12 +999,9 @@ class StartWorkApp:
         Button(actions, text="Add", command=submit, width=14, bg=ACCENT_DARK, fg="white", activebackground=ACCENT, activeforeground="white", relief="flat").pack(side="right")
         Button(actions, text="Cancel", command=win.destroy, width=12, bg=PANEL_LIGHT, fg=TEXT, activebackground="#263653", activeforeground=TEXT, relief="flat").pack(side="right", padx=(0, 8))
         entry.bind("<Return>", lambda _event: submit())
-        entry.bind("<Control-v>", paste_clipboard)
-        entry.bind("<Control-V>", paste_clipboard)
+        entry.bind("<KeyPress>", handle_link_keypress)
         entry.bind("<Shift-Insert>", paste_clipboard)
         win.bind("<Return>", lambda _event: submit())
-        win.bind("<Control-v>", paste_clipboard)
-        win.bind("<Control-V>", paste_clipboard)
         win.after(100, lambda: entry.focus_force())
 
     def update_selected(self):
